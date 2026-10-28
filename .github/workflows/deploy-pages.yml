@@ -55,7 +55,7 @@ jobs:
           html = re.sub(r'<link[^>]+(?:/src/styles\.css|/@tanstack-start/styles\.css|/@id/virtual:tanstack-start-dev-client-entry)[^>]*>', '', html)
           html = re.sub(r'<script[^>]+/@id/virtual:tanstack-start-dev-client-entry[^>]*>\s*</script>', '', html)
           css = os.environ['CSS_FILE']
-          html = html.replace('</head>', f'<link rel="stylesheet" href="./assets/{css}" /></head>')
+          html = html.replace('</head>', f'<base href="/wazee-wa-betting-tz/" /><link rel="stylesheet" href="/wazee-wa-betting-tz/assets/{css}" /></head>')
           html = re.sub(r'<script[^>]+type="module"[^>]*>\s*</script>', '', html)
           html = html.replace('</body>', '<script type="module" src="/wazee-wa-betting-tz/firebase-client.js"></script></body>')
           Path('.output/public/index.html').write_text(html)
