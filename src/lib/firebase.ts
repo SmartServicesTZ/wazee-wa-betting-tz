@@ -28,13 +28,9 @@ export async function registerWithPhone(phoneInput:string,password:string,profil
   const username="mzee_"+phone.slice(-9);
   try{
     await runTransaction(firestore,async tx=>{
-      const phoneRef=doc(firestore,"phoneNumbers",phone);
-      const existingPhone=await tx.get(phoneRef);
-      if(existingPhone.exists()) throw new Error("Namba hii tayari imesajiliwa. Jaribu kuingia.");
       const usernameRef=doc(firestore,"usernames",username);
       const existingUsername=await tx.get(usernameRef);
       if(existingUsername.exists()) throw new Error("Namba hii tayari imetumika.");
-      tx.set(phoneRef,{uid:result.user.uid,createdAt:serverTimestamp()});
       tx.set(usernameRef,{uid:result.user.uid,createdAt:serverTimestamp()});
       tx.set(doc(firestore,"users",result.user.uid),{
         uid:result.user.uid,email:result.user.email,firstName,lastName,username,phone,
