@@ -9,7 +9,7 @@ let authInstance:Auth|null=null; export function getFirebaseAuth(){if(typeof win
 export function subscribeToAuth(callback:(user:User|null)=>void){const auth=getFirebaseAuth();return auth?onAuthStateChanged(auth,callback):()=>undefined;}
 
 export function normalizeTanzaniaPhone(value:string){
-  const digits=value.replace(/\\D/g,"");
+  const digits=value.replace(/\D/g,"");
   if(digits.startsWith("255") && digits.length===12) return digits;
   if(digits.startsWith("0") && digits.length===10) return "255"+digits.slice(1);
   if(digits.length===9) return "255"+digits;
