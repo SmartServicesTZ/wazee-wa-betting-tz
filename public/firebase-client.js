@@ -103,24 +103,29 @@ async function savePhoneProfile(user, firstName, lastName, phone) {
   }
 }
 
+function phoneLoginEmail(raw) {
+  const phone = normalizeTzPhone(raw);
+  return phone.replace(/\D/g, "") + "@phone.wazeebetting.local";
+}
+
 function showAuthModal() {
   closeModal();
-  let otpConfirmation = null;
-  let verifier = null;
   const modal = document.createElement("div");
   modal.className = "modal-backdrop firebase-modal";
-  modal.innerHTML = `<div class="modal login-modal phone-auth-modal" data-modal-panel>
+  modal.innerHTML = `<div class="modal login-modal redesigned-auth-card" data-modal-panel>
     <button class="modal-close" data-close aria-label="Funga">×</button>
     <div class="login-mark">W</div>
     <span class="section-kicker">WAZEE WA BETTING TZ</span>
-    <h2>${registering ? "Jisajili" : "Ingia kwa simu"}</h2>
-    <p>${registering ? "Jaza majina yako mawili na namba ya simu pekee." : "Tumia namba yako ya simu kupokea msimbo wa kuingia."}</p>
-    ${registering ? '<label>Jina la kwanza<input data-first-name autocomplete="given-name" placeholder="Juma" required /></label><label>Jina la pili<input data-last-name autocomplete="family-name" placeholder="Mzee" required /></label>' : ""}
-    <label>Namba ya simu<input data-phone type="tel" autocomplete="tel" placeholder="0712 345 678" required /></label>
-    <div id="phone-modal-recaptcha"></div>
-    <div data-otp-wrap hidden><label>Msimbo wa SMS (OTP)<input data-otp inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="Ingiza tarakimu 6" /></label></div>
-    <p class="modal-error" data-error style="display:none"></p>
-    <button class="primary-button full" data-submit>${registering ? "Tuma msimbo wa usajili" : "Tuma msimbo wa kuingia"}</button>
+    <h2>${registering ? "Fungua akaunti" : "Karibu tena"}</h2>
+    <p>${registering ? "Jaza taarifa tano tu kufungua akaunti." : "Ingia kwa namba yako ya simu na password."}</p>
+    <form data-auth-form>
+      ${registering ? '<div class="auth-name-grid"><label>Jina la kwanza<input data-first-name autocomplete="given-name" placeholder="Jina la kwanza" required /></label><label>Jina la mwisho<input data-last-name autocomplete="family-name" placeholder="Jina la mwisho" required /></label></div>' : ""}
+      <label>Namba ya simu<input data-phone type="tel" autocomplete="tel" inputmode="tel" placeholder="0712 345 678" required /></label>
+      <label>Password<span class="auth-password-wrap"><input data-password type="password" autocomplete="${registering ? "new-password" : "current-password"}" placeholder="Weka password" minlength="6" required /><button type="button" data-show-password aria-label="Onyesha password">Onyesha</button></span></label>
+      ${registering ? '<label>Thibitisha password<input data-confirm-password type="password" autocomplete="new-password" placeholder="Rudia password" minlength="6" required /></label>' : '<p class="auth-forgot"><a href="https://wa.me/255698232313?text=Habari%2C%20nimesahau%20password%20ya%20akaunti%20yangu%20ya%20Wazee%20wa%20Betting%20TZ." target="_blank" rel="noopener noreferrer">Sahau password?</a></p>'}
+      <p data-error class="modal-error" role="alert" style="display:none"></p>
+      <button class="primary-button full auth-submit" type="submit" data-submit>${registering ? "Jisajili" : "Ingia"}</button>
+    </form>
     <button class="link-button" data-toggle>${registering ? "Tayari una akaunti? Ingia" : "Huna akaunti? Jisajili"}</button>
   </div>`;
   document.body.appendChild(modal);
@@ -128,43 +133,43 @@ function showAuthModal() {
     if (event.target === modal || event.target.closest("[data-close]")) closeModal();
     if (event.target.closest("[data-toggle]")) { registering = !registering; showAuthModal(); }
   });
-  modal.querySelector("[data-submit]").addEventListener("click", async () => {
+  modal.querySelector("[data-show-password]").addEventListener("click", () => {
+    const input = modal.querySelector("[data-password]");
+    input.type = input.type === "password" ? "text" : "password";
+    modal.querySelector("[data-show-password]").textContent = input.type === "password" ? "Onyesha" : "Ficha";
+  });
+  modal.querySelector("[data-auth-form]").addEventListener("submit", async (event) => {
+    event.preventDefault();
     const error = modal.querySelector("[data-error]");
     const submit = modal.querySelector("[data-submit]");
     error.style.display = "none";
     submit.disabled = true;
     try {
-      if (!otpConfirmation) {
-        const phone = normalizeTzPhone(modal.querySelector("[data-phone]").value);
-        const firstName = modal.querySelector("[data-first-name]")?.value.trim() || "";
-        const lastName = modal.querySelector("[data-last-name]")?.value.trim() || "";
-        if (registering && (!firstName || !lastName)) throw new Error("Jaza majina yote mawili.");
-        if (!verifier) verifier = new RecaptchaVerifier(auth, "phone-modal-recaptcha", { size: "invisible" });
-        otpConfirmation = await signInWithPhoneNumber(auth, phone, verifier);
-        modal.querySelector("[data-otp-wrap]").hidden = false;
-        modal.querySelector("[data-phone]").readOnly = true;
-        submit.textContent = "Thibitisha msimbo";
-        submit.dataset.phone = phone;
-        notify("Msimbo umetumwa kwa SMS.");
-      } else {
-        const code = modal.querySelector("[data-otp]").value.trim();
-        if (!/^\d{6}$/.test(code)) throw new Error("Ingiza msimbo wa tarakimu 6 uliotumwa kwa SMS.");
-        const result = await otpConfirmation.confirm(code);
-        const phone = submit.dataset.phone || result.user.phoneNumber || "";
-        const firstName = modal.querySelector("[data-first-name]")?.value.trim() || "";
-        const lastName = modal.querySelector("[data-last-name]")?.value.trim() || "";
+      const phone = normalizeTzPhone(modal.querySelector("[data-phone]").value);
+      const password = modal.querySelector("[data-password]").value;
+      if (password.length < 6) throw new Error("Password iwe na angalau herufi/tarakimu 6.");
+      const email = phoneLoginEmail(phone);
+      if (registering) {
+        const firstName = modal.querySelector("[data-first-name]").value.trim();
+        const lastName = modal.querySelector("[data-last-name]").value.trim();
+        const confirm = modal.querySelector("[data-confirm-password]").value;
+        if (!firstName || !lastName) throw new Error("Jaza jina la kwanza na jina la mwisho.");
+        if (password !== confirm) throw new Error("Password hazifanani.");
+        const result = await createUserWithEmailAndPassword(auth, email, password);
         await savePhoneProfile(result.user, firstName, lastName, phone);
+        closeModal();
+        notify("Akaunti imetengenezwa kwa mafanikio.");
+      } else {
+        await signInWithEmailAndPassword(auth, email, password);
         closeModal();
         notify("Umeingia kwa mafanikio.");
       }
     } catch (err) {
-      error.textContent = err?.code === "auth/operation-not-allowed"
-        ? "Kuingia kwa namba ya simu hakujawashwa kwenye Firebase Authentication."
-        : err?.code === "auth/invalid-phone-number" ? "Namba ya simu si sahihi."
-        : err?.code === "auth/invalid-verification-code" ? "Msimbo si sahihi. Jaribu tena."
-        : err?.message || "Imeshindikana. Jaribu tena.";
+      error.textContent = err?.code === "auth/email-already-in-use" ? "Namba hii tayari ina akaunti. Jaribu kuingia." :
+        err?.code === "auth/invalid-credential" || err?.code === "auth/wrong-password" || err?.code === "auth/user-not-found" ? "Namba ya simu au password si sahihi." :
+        err?.code === "auth/weak-password" ? "Password iwe na angalau herufi/tarakimu 6." :
+        err?.message || "Imeshindikana. Jaribu tena.";
       error.style.display = "block";
-      if (err?.code?.includes("captcha") || err?.code === "auth/too-many-requests") { verifier?.clear?.(); verifier = null; }
     } finally { submit.disabled = false; }
   });
 }
@@ -325,23 +330,20 @@ function wireAuthRoute() {
   const isRegister = path.endsWith("/register");
   const isLogin = path.endsWith("/login");
   if (!isRegister && !isLogin) return false;
-  let otpConfirmation = null;
-  let verifier = null;
-  let requestedPhone = "";
   document.body.innerHTML = `
-    <main class="auth-page phone-auth-page">
-      <section class="auth-card phone-auth-card">
+    <main class="auth-page redesigned-auth-page">
+      <section class="auth-card redesigned-auth-card">
         <a href="/wazee-wa-betting-tz/" class="brand"><span class="brand-mark">W</span><span><b>WAZEE WA</b><small>BETTING TZ</small></span></a>
         <span class="eyebrow">JAMII YA WAZEE WA BETTING TZ</span>
         <h1>${isRegister ? "Fungua akaunti" : "Karibu tena"}</h1>
-        <p>${isRegister ? "Jisajili kwa kujaza majina mawili na namba yako ya simu tu." : "Ingia kwa namba ya simu. Tutakutumia msimbo wa uthibitisho kwa SMS."}</p>
+        <p>${isRegister ? "Jaza taarifa tano tu kufungua akaunti." : "Ingia kwa namba yako ya simu na password."}</p>
         <form data-auth-form>
-          ${isRegister ? '<div class="name-fields"><label>Jina la kwanza<input data-first required autocomplete="given-name" placeholder="Juma" /></label><label>Jina la pili<input data-last required autocomplete="family-name" placeholder="Mushi" /></label></div>' : ""}
+          ${isRegister ? '<div class="auth-name-grid"><label>Jina la kwanza<input data-first required autocomplete="given-name" placeholder="Jina la kwanza" /></label><label>Jina la mwisho<input data-last required autocomplete="family-name" placeholder="Jina la mwisho" /></label></div>' : ""}
           <label>Namba ya simu<input data-phone required type="tel" autocomplete="tel" inputmode="tel" placeholder="0712 345 678" /></label>
-          <div id="phone-route-recaptcha"></div>
-          <div data-otp-wrap hidden><label>Msimbo wa SMS<input data-otp inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="Tarakimu 6" /></label></div>
+          <label>Password<span class="auth-password-wrap"><input data-password required type="password" minlength="6" autocomplete="${isRegister ? "new-password" : "current-password"}" placeholder="Weka password" /><button type="button" data-show-password>Onyesha</button></span></label>
+          ${isRegister ? '<label>Thibitisha password<input data-confirm-password required type="password" minlength="6" autocomplete="new-password" placeholder="Rudia password" /></label>' : '<p class="auth-forgot"><a href="https://wa.me/255698232313?text=Habari%2C%20nimesahau%20password%20ya%20akaunti%20yangu%20ya%20Wazee%20wa%20Betting%20TZ." target="_blank" rel="noopener noreferrer">Sahau password?</a></p>'}
           <p data-auth-error role="alert" class="auth-error" hidden></p>
-          <button class="btn btn-primary full" type="submit" data-submit>${isRegister ? "Tuma msimbo wa usajili" : "Tuma msimbo wa kuingia"}</button>
+          <button class="btn btn-primary full auth-submit" type="submit" data-submit>${isRegister ? "Jisajili" : "Ingia"}</button>
         </form>
         <p class="auth-footer">${isRegister ? 'Tayari una akaunti? <a href="/wazee-wa-betting-tz/login">Ingia</a>' : 'Huna akaunti? <a href="/wazee-wa-betting-tz/register">Jisajili</a>'}</p>
         <p class="auth-footer"><a href="/wazee-wa-betting-tz/">← Rudi mwanzo</a></p>
@@ -351,45 +353,37 @@ function wireAuthRoute() {
   const errorBox = document.querySelector("[data-auth-error]");
   const submit = document.querySelector("[data-submit]");
   const showError = (message) => { errorBox.textContent = message; errorBox.hidden = false; };
+  document.querySelector("[data-show-password]").addEventListener("click", () => {
+    const input = document.querySelector("[data-password]");
+    input.type = input.type === "password" ? "text" : "password";
+    document.querySelector("[data-show-password]").textContent = input.type === "password" ? "Onyesha" : "Ficha";
+  });
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     errorBox.hidden = true;
     submit.disabled = true;
     try {
-      if (!otpConfirmation) {
-        requestedPhone = normalizeTzPhone(form.querySelector("[data-phone]").value);
-        const firstName = form.querySelector("[data-first]")?.value.trim() || "";
-        const lastName = form.querySelector("[data-last]")?.value.trim() || "";
-        if (isRegister && (!firstName || !lastName)) throw new Error("Jaza majina yako mawili.");
-        if (!verifier) verifier = new RecaptchaVerifier(auth, "phone-route-recaptcha", { size: "invisible" });
-        otpConfirmation = await signInWithPhoneNumber(auth, requestedPhone, verifier);
-        form.querySelector("[data-otp-wrap]").hidden = false;
-        form.querySelector("[data-phone]").readOnly = true;
-        submit.textContent = "Thibitisha msimbo";
-        notify("Msimbo wa uthibitisho umetumwa kwa SMS.");
+      const phone = normalizeTzPhone(form.querySelector("[data-phone]").value);
+      const password = form.querySelector("[data-password]").value;
+      if (password.length < 6) throw new Error("Password iwe na angalau herufi/tarakimu 6.");
+      const email = phoneLoginEmail(phone);
+      if (isRegister) {
+        const firstName = form.querySelector("[data-first]").value.trim();
+        const lastName = form.querySelector("[data-last]").value.trim();
+        const confirm = form.querySelector("[data-confirm-password]").value;
+        if (!firstName || !lastName) throw new Error("Jaza jina la kwanza na jina la mwisho.");
+        if (password !== confirm) throw new Error("Password hazifanani.");
+        const result = await createUserWithEmailAndPassword(auth, email, password);
+        await savePhoneProfile(result.user, firstName, lastName, phone);
       } else {
-        const code = form.querySelector("[data-otp]").value.trim();
-        if (!/^\d{6}$/.test(code)) throw new Error("Ingiza msimbo wa tarakimu 6 uliotumwa kwa SMS.");
-        const result = await otpConfirmation.confirm(code);
-        const firstName = form.querySelector("[data-first]")?.value.trim() || "";
-        const lastName = form.querySelector("[data-last]")?.value.trim() || "";
-        const profile = await getDoc(doc(db, "users", result.user.uid));
-        if (isRegister && profile.exists() && profile.data().firstName) {
-          await savePhoneProfile(result.user, firstName, lastName, requestedPhone);
-        } else if (isRegister) {
-          await savePhoneProfile(result.user, firstName, lastName, requestedPhone);
-        } else if (!profile.exists()) {
-          await savePhoneProfile(result.user, "", "", requestedPhone);
-        }
-        location.href = "/wazee-wa-betting-tz/";
+        await signInWithEmailAndPassword(auth, email, password);
       }
+      location.href = "/wazee-wa-betting-tz/";
     } catch (err) {
-      showError(err?.code === "auth/operation-not-allowed"
-        ? "Kuingia kwa namba ya simu hakujawashwa kwenye Firebase Authentication."
-        : err?.code === "auth/invalid-phone-number" ? "Namba ya simu si sahihi."
-        : err?.code === "auth/invalid-verification-code" ? "Msimbo si sahihi. Jaribu tena."
-        : err?.message || "Imeshindikana. Jaribu tena.");
-      if (err?.code?.includes("captcha") || err?.code === "auth/too-many-requests") { verifier?.clear?.(); verifier = null; }
+      showError(err?.code === "auth/email-already-in-use" ? "Namba hii tayari ina akaunti. Jaribu kuingia." :
+        err?.code === "auth/invalid-credential" || err?.code === "auth/wrong-password" || err?.code === "auth/user-not-found" ? "Namba ya simu au password si sahihi." :
+        err?.code === "auth/weak-password" ? "Password iwe na angalau herufi/tarakimu 6." :
+        err?.message || "Imeshindikana. Jaribu tena.");
     } finally { submit.disabled = false; }
   });
   return true;
