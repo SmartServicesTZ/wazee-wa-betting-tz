@@ -85,7 +85,7 @@ async function savePhoneProfile(user, firstName, lastName, phone) {
   const profileRef = doc(db, "users", user.uid);
   const old = await getDoc(profileRef);
   const oldData = old.exists() ? old.data() : {};
-  const username = oldData.username || ("tz" + String(phone).replace(/\\D/g, "").slice(-9));
+  const username = oldData.username || ("tz" + String(phone).replace(/\D/g, "").slice(-9));
   await updateProfile(user, { displayName });
   await setDoc(profileRef, {
     uid: user.uid, firstName: firstName || oldData.firstName || displayName.split(" ")[0],
@@ -148,7 +148,7 @@ function showAuthModal() {
         notify("Msimbo umetumwa kwa SMS.");
       } else {
         const code = modal.querySelector("[data-otp]").value.trim();
-        if (!/^\\d{6}$/.test(code)) throw new Error("Ingiza msimbo wa tarakimu 6 uliotumwa kwa SMS.");
+        if (!/^\d{6}$/.test(code)) throw new Error("Ingiza msimbo wa tarakimu 6 uliotumwa kwa SMS.");
         const result = await otpConfirmation.confirm(code);
         const phone = submit.dataset.phone || result.user.phoneNumber || "";
         const firstName = modal.querySelector("[data-first-name]")?.value.trim() || "";
@@ -321,7 +321,7 @@ function showDraftModal() {
 
 
 function wireAuthRoute() {
-  const path = location.pathname.replace(/\\/+$/, "").toLowerCase();
+  const path = location.pathname.replace(/\/+$/, "").toLowerCase();
   const isRegister = path.endsWith("/register");
   const isLogin = path.endsWith("/login");
   if (!isRegister && !isLogin) return false;
@@ -369,7 +369,7 @@ function wireAuthRoute() {
         notify("Msimbo wa uthibitisho umetumwa kwa SMS.");
       } else {
         const code = form.querySelector("[data-otp]").value.trim();
-        if (!/^\\d{6}$/.test(code)) throw new Error("Ingiza msimbo wa tarakimu 6 uliotumwa kwa SMS.");
+        if (!/^\d{6}$/.test(code)) throw new Error("Ingiza msimbo wa tarakimu 6 uliotumwa kwa SMS.");
         const result = await otpConfirmation.confirm(code);
         const firstName = form.querySelector("[data-first]")?.value.trim() || "";
         const lastName = form.querySelector("[data-last]")?.value.trim() || "";
