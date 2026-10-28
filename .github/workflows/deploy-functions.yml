@@ -1,30 +1,42 @@
-name: Deploy Firebase Functions
+name: Deploy Firebase Backend
 on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ["functions/**"]
+    paths:
+      - "functions/**"
+      - "firestore.rules"
+      - "storage.rules"
+      - "firebase.json"
+      - ".github/workflows/deploy-functions.yml"
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: {node-version: 22}
+        with:
+          node-version: 22
+      - name: Check Firebase deployment credentials
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
+            echo "::error::Missing GitHub Actions secret FIREBASE_SERVICE_ACCOUNT. Add the Firebase service-account JSON in repository Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-service-account.json"
+          node -e "JSON.parse(require('fs').readFileSync(process.argv[1], 'utf8'))" "$RUNNER_TEMP/firebase-service-account.json"
       - name: Install functions dependencies
         working-directory: functions
         run: npm install
-      - name: Build
+      - name: Build functions
         working-directory: functions
         run: npm run build
-      - name: Write service account
-        env:
-          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-        run: printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-service-account.json"
-      - name: Deploy
+      - name: Deploy Firebase functions and rules
         working-directory: functions
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
           SPORTS_API_KEY: ${{ secrets.SPORTS_API_KEY }}
           SPORTS_API_BASE_URL: ${{ secrets.SPORTS_API_BASE_URL }}
-        run: npx firebase-tools deploy --only functions --project wazee-wa-betting-tz-e7183 --non-interactive
+        run: npx firebase-tools deploy --only functions,firestore:rules,storage --project wazee-wa-betting-tz-e7183 --non-interactive
