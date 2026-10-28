@@ -7,6 +7,53 @@ const firebaseConfig={apiKey:import.meta.env.VITE_FIREBASE_API_KEY??"AIzaSyCMWh-
 export const firebaseApp=getApps().length?getApp():initializeApp(firebaseConfig); export const firestore=getFirestore(firebaseApp); export const storage:FirebaseStorage=getStorage(firebaseApp); export const functions=getFunctions(firebaseApp,"europe-west1");
 let authInstance:Auth|null=null; export function getFirebaseAuth(){if(typeof window==="undefined")return null;authInstance??=getAuth(firebaseApp);return authInstance;}
 export function subscribeToAuth(callback:(user:User|null)=>void){const auth=getFirebaseAuth();return auth?onAuthStateChanged(auth,callback):()=>undefined;}
+
+export function normalizeTanzaniaPhone(value:string){
+  const digits=value.replace(/\\D/g,"");
+  if(digits.startsWith("255") && digits.length===12) return digits;
+  if(digits.startsWith("0") && digits.length===10) return "255"+digits.slice(1);
+  if(digits.length===9) return "255"+digits;
+  throw new Error("Weka namba sahihi ya Tanzania, mfano 0712345678.");
+}
+function phoneLoginEmail(phone:string){return normalizeTanzaniaPhone(phone)+"@phone.wazee-wa-betting-tz.com";}
+export async function registerWithPhone(phoneInput:string,password:string,profile:{firstName:string;lastName:string}){
+  const phone=normalizeTanzaniaPhone(phoneInput);
+  const email=phoneLoginEmail(phone);
+  const auth=getFirebaseAuth();
+  if(!auth) throw new Error("Firebase Auth inapatikana kwenye browser pekee.");
+  const result=await createUserWithEmailAndPassword(auth,email,password);
+  const firstName=profile.firstName.trim();
+  const lastName=profile.lastName.trim();
+  const displayName=(firstName+" "+lastName).trim();
+  const username="mzee_"+phone.slice(-9);
+  try{
+    await runTransaction(firestore,async tx=>{
+      const phoneRef=doc(firestore,"phoneNumbers",phone);
+      const existingPhone=await tx.get(phoneRef);
+      if(existingPhone.exists()) throw new Error("Namba hii tayari imesajiliwa. Jaribu kuingia.");
+      const usernameRef=doc(firestore,"usernames",username);
+      const existingUsername=await tx.get(usernameRef);
+      if(existingUsername.exists()) throw new Error("Namba hii tayari imetumika.");
+      tx.set(phoneRef,{uid:result.user.uid,createdAt:serverTimestamp()});
+      tx.set(usernameRef,{uid:result.user.uid,createdAt:serverTimestamp()});
+      tx.set(doc(firestore,"users",result.user.uid),{
+        uid:result.user.uid,email:result.user.email,firstName,lastName,username,phone,
+        displayName:displayName||username,role:"USER",followersCount:0,followingCount:0,
+        ticketCount:0,wonCount:0,lostCount:0,pendingCount:0,winRate:0,
+        createdAt:serverTimestamp(),updatedAt:serverTimestamp()
+      });
+    });
+    if(displayName) await updateProfile(result.user,{displayName});
+    return result.user;
+  }catch(error){await signOut(auth);throw error;}
+}
+export async function loginWithPhone(phoneInput:string,password:string){
+  const auth=getFirebaseAuth();
+  if(!auth) throw new Error("Firebase Auth inapatikana kwenye browser pekee.");
+  const phone=normalizeTanzaniaPhone(phoneInput);
+  return (await signInWithEmailAndPassword(auth,phoneLoginEmail(phone),password)).user;
+}
+
 export async function registerWithEmail(email:string,password:string,profile:{firstName:string;lastName:string;username:string;phone?:string}){const username=profile.username.trim().toLowerCase();if(!/^[a-z0-9_]{3,24}$/.test(username))throw new Error("Username: herufi ndogo, namba au underscore pekee (3–24).");const auth=getFirebaseAuth();if(!auth)throw new Error("Firebase Auth inapatikana kwenye browser pekee.");const result=await createUserWithEmailAndPassword(auth,email.trim(),password);const displayName=(profile.firstName+" "+profile.lastName).trim();try{await runTransaction(firestore,async tx=>{const usernameRef=doc(firestore,"usernames",username);const existing=await tx.get(usernameRef);if(existing.exists())throw new Error("Username tayari imetumika.");tx.set(usernameRef,{uid:result.user.uid,createdAt:serverTimestamp()});tx.set(doc(firestore,"users",result.user.uid),{uid:result.user.uid,email:result.user.email,firstName:profile.firstName.trim(),lastName:profile.lastName.trim(),username,phone:profile.phone?.trim()??"",displayName:displayName||username,role:"USER",followersCount:0,followingCount:0,ticketCount:0,wonCount:0,lostCount:0,pendingCount:0,winRate:0,createdAt:serverTimestamp(),updatedAt:serverTimestamp()});});if(displayName)await updateProfile(result.user,{displayName});return result.user;}catch(error){await signOut(auth);throw error;}}
 export async function loginWithEmail(email:string,password:string){const auth=getFirebaseAuth();if(!auth)throw new Error("Firebase Auth inapatikana kwenye browser pekee.");return(await signInWithEmailAndPassword(auth,email.trim(),password)).user;}
 export async function loginWithGoogle(){const auth=getFirebaseAuth();if(!auth)throw new Error("Firebase Auth inapatikana kwenye browser pekee.");const result=await signInWithPopup(auth,new GoogleAuthProvider());const profileRef=doc(firestore,"users",result.user.uid);const existing=await getDoc(profileRef);if(!existing.exists()){await setDoc(profileRef,{uid:result.user.uid,email:result.user.email,displayName:result.user.displayName,photoURL:result.user.photoURL,role:"USER",followersCount:0,followingCount:0,ticketCount:0,wonCount:0,lostCount:0,pendingCount:0,winRate:0,createdAt:serverTimestamp(),updatedAt:serverTimestamp()});}else{await setDoc(profileRef,{uid:result.user.uid,email:result.user.email,displayName:result.user.displayName,photoURL:result.user.photoURL,updatedAt:serverTimestamp()},{merge:true});}return result.user;}
