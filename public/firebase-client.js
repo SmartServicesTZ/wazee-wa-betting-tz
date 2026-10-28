@@ -18,6 +18,7 @@ import {
   getDocs,
   getFirestore,
   query,
+  runTransaction,
   serverTimestamp,
   setDoc,
   updateDoc,
@@ -313,6 +314,118 @@ function showDraftModal() {
   });
 }
 
+
+function wireAuthRoute() {
+  const path = location.pathname.replace(/\/+$/, "").toLowerCase();
+  const isRegister = path.endsWith("/register");
+  const isLogin = path.endsWith("/login");
+  if (!isRegister && !isLogin) return false;
+
+  document.body.innerHTML = \`
+    <main class="auth-page" style="min-height:100vh;display:grid;place-items:center;padding:24px;background:#071714;color:#f5f7f2">
+      <section class="auth-card \${isRegister ? "wide" : ""}" style="width:min(100%,560px);margin:auto;padding:28px;border:1px solid #30463d;border-radius:18px;background:#0e211b">
+        <a href="/wazee-wa-betting-tz/" class="brand" style="display:flex;gap:12px;align-items:center;color:inherit;text-decoration:none;margin-bottom:24px"><span class="brand-mark" style="display:grid;place-items:center;width:42px;height:42px;border-radius:12px;background:#b8f34b;color:#071714;font-weight:900">W</span><span><b>WAZEE WA</b><br><small>BETTING TZ</small></span></a>
+        <span class="eyebrow">WAZEE WA BETTING TZ</span>
+        <h1 style="margin:10px 0">\${isRegister ? "Unda akaunti" : "Karibu tena"}</h1>
+        <p style="color:#aabbb1">\${isRegister ? "Jisajili kuanza kushiriki kwenye jamii." : "Ingia kwenye akaunti yako kuendelea."}</p>
+        <form data-auth-form style="display:grid;gap:14px">
+          \${isRegister ? '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px"><label>Jina<input data-first required autocomplete="given-name" /></label><label>Jina la mwisho<input data-last required autocomplete="family-name" /></label></div><label>Username<input data-username required autocomplete="username" placeholder="mzee_odds" /></label><label>Namba ya simu<input data-phone required autocomplete="tel" /></label>' : ""}
+          <label>Email<input data-email type="email" required autocomplete="email" /></label>
+          <label>Password<input data-password type="password" required minlength="8" autocomplete="\${isRegister ? "new-password" : "current-password"}" /></label>
+          \${isRegister ? '<label>Thibitisha password<input data-confirm type="password" required minlength="8" autocomplete="new-password" /></label>' : ""}
+          <p data-auth-error role="alert" style="display:none;color:#ffaaa3"></p>
+          <button class="btn btn-primary full" type="submit" data-submit style="padding:13px;border:0;border-radius:10px;background:#b8f34b;color:#071714;font-weight:800;cursor:pointer">\${isRegister ? "Jisajili" : "Ingia"}</button>
+          <button class="btn btn-secondary full" type="button" data-google style="padding:12px;border:1px solid #496257;border-radius:10px;background:transparent;color:inherit;cursor:pointer">Endelea na Google</button>
+        </form>
+        <p style="margin-top:20px;color:#aabbb1">\${isRegister ? 'Una akaunti? <a href="/wazee-wa-betting-tz/login" style="color:#b8f34b">Ingia</a>' : 'Huna akaunti? <a href="/wazee-wa-betting-tz/register" style="color:#b8f34b">Jisajili</a>'}</p>
+        <p><a href="/wazee-wa-betting-tz/" style="color:#b8f34b">← Rudi mwanzo</a></p>
+      </section>
+    </main>\`;
+
+  const form = document.querySelector("[data-auth-form]");
+  const errorBox = document.querySelector("[data-auth-error]");
+  const submit = document.querySelector("[data-submit]");
+  const showError = (message) => {
+    errorBox.textContent = message;
+    errorBox.style.display = "block";
+  };
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    errorBox.style.display = "none";
+    submit.disabled = true;
+    submit.textContent = "Inasubiri...";
+    try {
+      const email = form.querySelector("[data-email]").value.trim();
+      const password = form.querySelector("[data-password]").value;
+      if (isRegister) {
+        const firstName = form.querySelector("[data-first]").value.trim();
+        const lastName = form.querySelector("[data-last]").value.trim();
+        const username = form.querySelector("[data-username]").value.trim().toLowerCase();
+        const phone = form.querySelector("[data-phone]").value.trim();
+        const confirmPassword = form.querySelector("[data-confirm]").value;
+        if (!firstName || !lastName || !username || !email || !phone || !password) throw new Error("Jaza taarifa zote zinazohitajika.");
+        if (!/^[a-z0-9_]{3,24}$/.test(username)) throw new Error("Username iwe na herufi ndogo, namba au underscore (3–24).");
+        if (password.length < 8) throw new Error("Password iwe na angalau herufi 8.");
+        if (password !== confirmPassword) throw new Error("Password hazifanani.");
+        if (!/^\\+?[0-9\\s-]{9,18}$/.test(phone)) throw new Error("Weka namba ya simu iliyo sahihi.");
+        const result = await createUserWithEmailAndPassword(auth, email, password);
+        try {
+          await updateProfile(result.user, { displayName: \`\${firstName} \${lastName}\`.trim() });
+          await runTransaction(db, async (transaction) => {
+            const usernameRef = doc(db, "usernames", username);
+            const usernameSnap = await transaction.get(usernameRef);
+            if (usernameSnap.exists()) throw new Error("Username hiyo tayari inatumika.");
+            transaction.set(usernameRef, { uid: result.user.uid, username, createdAt: serverTimestamp() });
+            transaction.set(doc(db, "users", result.user.uid), {
+              uid: result.user.uid, email: result.user.email, firstName, lastName, username, phone,
+              displayName: \`\${firstName} \${lastName}\`.trim(), role: "USER",
+              followersCount: 0, followingCount: 0, ticketCount: 0, wonCount: 0, lostCount: 0,
+              pendingCount: 0, winRate: 0, createdAt: serverTimestamp(), updatedAt: serverTimestamp()
+            });
+          });
+        } catch (profileError) {
+          await signOut(auth);
+          throw profileError;
+        }
+        notify("Akaunti imetengenezwa kwa mafanikio.");
+      } else {
+        await signInWithEmailAndPassword(auth, email, password);
+        notify("Umeingia kwa mafanikio.");
+      }
+      location.href = "/wazee-wa-betting-tz/";
+    } catch (authError) {
+      const message = authError?.code === "auth/email-already-in-use" ? "Email hii tayari ina akaunti. Ingia badala yake."
+        : authError?.code === "auth/invalid-credential" ? "Email au password si sahihi."
+        : authError?.code === "auth/weak-password" ? "Password ni dhaifu. Tumia angalau herufi 8."
+        : authError?.message || "Imeshindikana. Jaribu tena.";
+      showError(message);
+    } finally {
+      submit.disabled = false;
+      submit.textContent = isRegister ? "Jisajili" : "Ingia";
+    }
+  });
+
+  document.querySelector("[data-google]").addEventListener("click", async () => {
+    errorBox.style.display = "none";
+    try {
+      const result = await signInWithPopup(auth, new GoogleAuthProvider());
+      const profileRef = doc(db, "users", result.user.uid);
+      const profile = await getDoc(profileRef);
+      if (!profile.exists()) await setDoc(profileRef, {
+        uid: result.user.uid, email: result.user.email, displayName: result.user.displayName,
+        photoURL: result.user.photoURL, role: "USER", followersCount: 0, followingCount: 0,
+        ticketCount: 0, wonCount: 0, lostCount: 0, pendingCount: 0, winRate: 0,
+        createdAt: serverTimestamp(), updatedAt: serverTimestamp()
+      });
+      location.href = "/wazee-wa-betting-tz/";
+    } catch (authError) {
+      showError(authError?.message || "Google sign-in imeshindikana.");
+    }
+  });
+  return true;
+}
+
 function wirePage() {
   document.querySelectorAll(".profile-button").forEach((button) => button.addEventListener("click", () => currentUser ? showDashboardModal() : showAuthModal()));
   document.querySelectorAll(".primary-button").forEach((button) => {
@@ -341,5 +454,5 @@ onAuthStateChanged(auth, (user) => {
   });
 });
 
-if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", wirePage);
-else wirePage();
+if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", () => { if (!wireAuthRoute()) wirePage(); });
+else if (!wireAuthRoute()) wirePage();
