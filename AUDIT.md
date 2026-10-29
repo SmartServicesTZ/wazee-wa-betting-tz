@@ -5,7 +5,7 @@
 ### Architecture iliyopo
 
 - **Frontend:** TanStack Start, React 19, Vite na Tailwind CSS.
-- **Deployment:** GitHub Pages; kwa sababu TanStack hydration ya SSR iliwahi kuleta black screen, Pages inachapisha SSR HTML pamoja na `public/firebase-client.js` kama vanilla client module.
+- **Deployment:** GitHub Pages; workflow huchapisha SSR HTML na assets za React/TanStack Start pekee. Hakuna vanilla auth client ya pili inayopindua routes za React.
 - **Backend server:** Hakuna backend server iliyowekwa kwenye repository hii.
 - **Database/Auth:** Firebase Authentication, Cloud Firestore na Firebase Storage.
 - **Build:** `pnpm run build`; GitHub Actions workflow ya `.github/workflows/deploy-pages.yml`.

@@ -39,7 +39,6 @@ jobs:
           set -euo pipefail
           css_file=$(find .output/public/assets -maxdepth 1 -name 'styles-*.css' -printf '%f\n' | head -1)
           test -n "$css_file"
-          cp public/firebase-client.js .output/public/firebase-client.js
           pnpm run dev --host 127.0.0.1 --port 4174 >/tmp/wazee-pages-vite.log 2>&1 &
           vite_pid=$!
           trap 'kill "$vite_pid" 2>/dev/null || true' EXIT
@@ -57,7 +56,6 @@ jobs:
           css = os.environ['CSS_FILE']
           html = html.replace('</head>', f'<base href="/wazee-wa-betting-tz/" /><link rel="stylesheet" href="/wazee-wa-betting-tz/assets/{css}" /></head>')
           html = re.sub(r'<script[^>]+type="module"[^>]*>\s*</script>', '', html)
-          html = html.replace('</body>', '<script type="module" src="/wazee-wa-betting-tz/firebase-client.js"></script></body>')
           Path('.output/public/index.html').write_text(html)
           PY
           cp .output/public/index.html .output/public/404.html

@@ -7,7 +7,7 @@ Jukwaa la Tanzania la betting tips, mikeka na community ya michezo.
 - Dashboard mpya, mobile-first na responsive
 - Community picks, mechi za leo, leaderboard na responsible betting guidance
 - Ticket builder ya kuanza kuchagua selections na kuhesabu total odds
-- Firebase Authentication: email/password, registration na Google sign-in
+- Firebase Authentication: namba ya Tanzania na password kupitia flow moja ya React; hakuna Google login
 - Cloud Firestore: user profiles na betting drafts
 - Firebase Storage: profile image uploads
 - Firestore na Storage security rules ziko kwenye `firestore.rules` na `storage.rules`
@@ -34,7 +34,7 @@ cp .env.example .env.local
 
 Kisha hakikisha Firebase Console imewezeshwa:
 
-1. Authentication: Email/Password na Google provider
+1. Authentication: Email/Password provider kwa akaunti za simu; hakuna Google provider kwenye UI
 2. Firestore Database
 3. Storage
 4. Rules kutoka `firestore.rules` na `storage.rules`
@@ -46,7 +46,7 @@ Firebase web API key si credential ya server; usalama unatokana na Authenticatio
 
 Account mpya hupewa `role: "USER"` na user hawezi kubadilisha role yake kupitia client. Kwa account yako ya **SUPER_ADMIN**: fungua Firebase Console → Authentication → Users, nakili UID ya account yako, fungua Firestore → `users` → document yenye UID hiyo, kisha weka field ya string `role` kuwa `SUPER_ADMIN`. Kwa Admin wa kawaida tumia `ADMIN`. Rules ndizo zinazotekeleza access, si jina la username au button ya frontend. Usimpe user wa kawaida write access ya kubadilisha role.
 
-Usihifadhi password kwenye source code, GitHub, Firestore au frontend. Username ya production inapaswa kuwa lowercase letters, numbers au underscore; mfano `steward_tz`. Username yenye `$` na space kama `$teward Tz` haitapita validation ya usajili.
+Usihifadhi password kwenye source code, GitHub, Firestore au frontend. Username ya production inapaswa kuwa lowercase letters, numbers au underscore; mfano `steward_tz`.
 
 ## Production integrations zinazohitajika
 

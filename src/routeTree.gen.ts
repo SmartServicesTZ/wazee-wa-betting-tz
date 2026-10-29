@@ -10,73 +10,167 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as ArifaRouteImport } from './routes/arifa'
-import { Route as HudumaRouteImport } from './routes/huduma'
-import { Route as MsaadaRouteImport } from './routes/msaada'
-import { Route as WatejaRouteImport } from './routes/wateja'
+import { Route as AdminRouteImport } from './routes/admin'
+import { Route as CommunityRouteImport } from './routes/community'
+import { Route as CreateTicketRouteImport } from './routes/create-ticket'
+import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as LeaderboardRouteImport } from './routes/leaderboard'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as MatchesRouteImport } from './routes/matches'
+import { Route as RegisterRouteImport } from './routes/register'
+import { Route as TicketsTicketIdRouteImport } from './routes/tickets/$ticketId'
+import { Route as UsersUsernameRouteImport } from './routes/users/$username'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ArifaRoute = ArifaRouteImport.update({
-  id: '/arifa',
-  path: '/arifa',
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
   getParentRoute: () => rootRouteImport,
 } as any)
-const HudumaRoute = HudumaRouteImport.update({
-  id: '/huduma',
-  path: '/huduma',
+const CommunityRoute = CommunityRouteImport.update({
+  id: '/community',
+  path: '/community',
   getParentRoute: () => rootRouteImport,
 } as any)
-const MsaadaRoute = MsaadaRouteImport.update({
-  id: '/msaada',
-  path: '/msaada',
+const CreateTicketRoute = CreateTicketRouteImport.update({
+  id: '/create-ticket',
+  path: '/create-ticket',
   getParentRoute: () => rootRouteImport,
 } as any)
-const WatejaRoute = WatejaRouteImport.update({
-  id: '/wateja',
-  path: '/wateja',
+const DashboardRoute = DashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LeaderboardRoute = LeaderboardRouteImport.update({
+  id: '/leaderboard',
+  path: '/leaderboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MatchesRoute = MatchesRouteImport.update({
+  id: '/matches',
+  path: '/matches',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RegisterRoute = RegisterRouteImport.update({
+  id: '/register',
+  path: '/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TicketsTicketIdRoute = TicketsTicketIdRouteImport.update({
+  id: '/tickets/$ticketId',
+  path: '/tickets/$ticketId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const UsersUsernameRoute = UsersUsernameRouteImport.update({
+  id: '/users/$username',
+  path: '/users/$username',
   getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/arifa': typeof ArifaRoute
-  '/huduma': typeof HudumaRoute
-  '/msaada': typeof MsaadaRoute
-  '/wateja': typeof WatejaRoute
+  '/admin': typeof AdminRoute
+  '/community': typeof CommunityRoute
+  '/create-ticket': typeof CreateTicketRoute
+  '/dashboard': typeof DashboardRoute
+  '/leaderboard': typeof LeaderboardRoute
+  '/login': typeof LoginRoute
+  '/matches': typeof MatchesRoute
+  '/register': typeof RegisterRoute
+  '/tickets/$ticketId': typeof TicketsTicketIdRoute
+  '/users/$username': typeof UsersUsernameRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/arifa': typeof ArifaRoute
-  '/huduma': typeof HudumaRoute
-  '/msaada': typeof MsaadaRoute
-  '/wateja': typeof WatejaRoute
+  '/admin': typeof AdminRoute
+  '/community': typeof CommunityRoute
+  '/create-ticket': typeof CreateTicketRoute
+  '/dashboard': typeof DashboardRoute
+  '/leaderboard': typeof LeaderboardRoute
+  '/login': typeof LoginRoute
+  '/matches': typeof MatchesRoute
+  '/register': typeof RegisterRoute
+  '/tickets/$ticketId': typeof TicketsTicketIdRoute
+  '/users/$username': typeof UsersUsernameRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/arifa': typeof ArifaRoute
-  '/huduma': typeof HudumaRoute
-  '/msaada': typeof MsaadaRoute
-  '/wateja': typeof WatejaRoute
+  '/admin': typeof AdminRoute
+  '/community': typeof CommunityRoute
+  '/create-ticket': typeof CreateTicketRoute
+  '/dashboard': typeof DashboardRoute
+  '/leaderboard': typeof LeaderboardRoute
+  '/login': typeof LoginRoute
+  '/matches': typeof MatchesRoute
+  '/register': typeof RegisterRoute
+  '/tickets/$ticketId': typeof TicketsTicketIdRoute
+  '/users/$username': typeof UsersUsernameRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/arifa' | '/huduma' | '/msaada' | '/wateja'
+  fullPaths:
+    | '/'
+    | '/admin'
+    | '/community'
+    | '/create-ticket'
+    | '/dashboard'
+    | '/leaderboard'
+    | '/login'
+    | '/matches'
+    | '/register'
+    | '/tickets/$ticketId'
+    | '/users/$username'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/arifa' | '/huduma' | '/msaada' | '/wateja'
-  id: '__root__' | '/' | '/arifa' | '/huduma' | '/msaada' | '/wateja'
+  to:
+    | '/'
+    | '/admin'
+    | '/community'
+    | '/create-ticket'
+    | '/dashboard'
+    | '/leaderboard'
+    | '/login'
+    | '/matches'
+    | '/register'
+    | '/tickets/$ticketId'
+    | '/users/$username'
+  id:
+    | '__root__'
+    | '/'
+    | '/admin'
+    | '/community'
+    | '/create-ticket'
+    | '/dashboard'
+    | '/leaderboard'
+    | '/login'
+    | '/matches'
+    | '/register'
+    | '/tickets/$ticketId'
+    | '/users/$username'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  ArifaRoute: typeof ArifaRoute
-  HudumaRoute: typeof HudumaRoute
-  MsaadaRoute: typeof MsaadaRoute
-  WatejaRoute: typeof WatejaRoute
+  AdminRoute: typeof AdminRoute
+  CommunityRoute: typeof CommunityRoute
+  CreateTicketRoute: typeof CreateTicketRoute
+  DashboardRoute: typeof DashboardRoute
+  LeaderboardRoute: typeof LeaderboardRoute
+  LoginRoute: typeof LoginRoute
+  MatchesRoute: typeof MatchesRoute
+  RegisterRoute: typeof RegisterRoute
+  TicketsTicketIdRoute: typeof TicketsTicketIdRoute
+  UsersUsernameRoute: typeof UsersUsernameRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -88,32 +182,74 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/arifa': {
-      id: '/arifa'
-      path: '/arifa'
-      fullPath: '/arifa'
-      preLoaderRoute: typeof ArifaRouteImport
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/huduma': {
-      id: '/huduma'
-      path: '/huduma'
-      fullPath: '/huduma'
-      preLoaderRoute: typeof HudumaRouteImport
+    '/community': {
+      id: '/community'
+      path: '/community'
+      fullPath: '/community'
+      preLoaderRoute: typeof CommunityRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/msaada': {
-      id: '/msaada'
-      path: '/msaada'
-      fullPath: '/msaada'
-      preLoaderRoute: typeof MsaadaRouteImport
+    '/create-ticket': {
+      id: '/create-ticket'
+      path: '/create-ticket'
+      fullPath: '/create-ticket'
+      preLoaderRoute: typeof CreateTicketRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/wateja': {
-      id: '/wateja'
-      path: '/wateja'
-      fullPath: '/wateja'
-      preLoaderRoute: typeof WatejaRouteImport
+    '/dashboard': {
+      id: '/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof DashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/leaderboard': {
+      id: '/leaderboard'
+      path: '/leaderboard'
+      fullPath: '/leaderboard'
+      preLoaderRoute: typeof LeaderboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/matches': {
+      id: '/matches'
+      path: '/matches'
+      fullPath: '/matches'
+      preLoaderRoute: typeof MatchesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/register': {
+      id: '/register'
+      path: '/register'
+      fullPath: '/register'
+      preLoaderRoute: typeof RegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tickets/$ticketId': {
+      id: '/tickets/$ticketId'
+      path: '/tickets/$ticketId'
+      fullPath: '/tickets/$ticketId'
+      preLoaderRoute: typeof TicketsTicketIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/users/$username': {
+      id: '/users/$username'
+      path: '/users/$username'
+      fullPath: '/users/$username'
+      preLoaderRoute: typeof UsersUsernameRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -121,10 +257,16 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  ArifaRoute: ArifaRoute,
-  HudumaRoute: HudumaRoute,
-  MsaadaRoute: MsaadaRoute,
-  WatejaRoute: WatejaRoute,
+  AdminRoute: AdminRoute,
+  CommunityRoute: CommunityRoute,
+  CreateTicketRoute: CreateTicketRoute,
+  DashboardRoute: DashboardRoute,
+  LeaderboardRoute: LeaderboardRoute,
+  LoginRoute: LoginRoute,
+  MatchesRoute: MatchesRoute,
+  RegisterRoute: RegisterRoute,
+  TicketsTicketIdRoute: TicketsTicketIdRoute,
+  UsersUsernameRoute: UsersUsernameRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
