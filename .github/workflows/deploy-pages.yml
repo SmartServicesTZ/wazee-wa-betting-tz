@@ -42,23 +42,39 @@ jobs:
           pnpm run dev --host 127.0.0.1 --port 4174 >/tmp/wazee-pages-vite.log 2>&1 &
           vite_pid=$!
           trap 'kill "$vite_pid" 2>/dev/null || true' EXIT
-          for attempt in $(seq 1 30); do
-            if curl -fsS http://127.0.0.1:4174/wazee-wa-betting-tz/ >/tmp/wazee-ssr.html; then break; fi
-            sleep 1
-          done
-          test -s /tmp/wazee-ssr.html
           CSS_FILE="$css_file" python3 - <<'PY'
           import os, re
           from pathlib import Path
-          html = Path('/tmp/wazee-ssr.html').read_text()
-          html = re.sub(r'<link[^>]+(?:/src/styles\.css|/@tanstack-start/styles\.css|/@id/virtual:tanstack-start-dev-client-entry)[^>]*>', '', html)
-          html = re.sub(r'<script[^>]+/@id/virtual:tanstack-start-dev-client-entry[^>]*>\s*</script>', '', html)
+          import subprocess
+
+          base = '/wazee-wa-betting-tz'
+          routes = ['', 'login', 'register', 'community', 'matches', 'leaderboard', 'create-ticket', 'dashboard', 'admin']
           css = os.environ['CSS_FILE']
-          html = html.replace('</head>', f'<base href="/wazee-wa-betting-tz/" /><link rel="stylesheet" href="/wazee-wa-betting-tz/assets/{css}" /></head>')
-          html = re.sub(r'<script[^>]+type="module"[^>]*>\s*</script>', '', html)
-          Path('.output/public/index.html').write_text(html)
+
+          def render(route):
+              url = f'http://127.0.0.1:4174{base}/{route}'.rstrip('/') + ('/' if not route else '')
+              for _ in range(30):
+                  result = subprocess.run(['curl', '-fsS', url], capture_output=True, text=True)
+                  if result.returncode == 0 and result.stdout.strip():
+                      return result.stdout
+                  subprocess.run(['sleep', '1'], check=True)
+              raise SystemExit(f'Could not render {url}')
+
+          def prepare(html):
+              html = re.sub(r'<link[^>]+(?:/src/styles\.css|/@tanstack-start/styles\.css|/@id/virtual:tanstack-start-dev-client-entry)[^>]*>', '', html)
+              html = re.sub(r'<script[^>]+/@id/virtual:tanstack-start-dev-client-entry[^>]*>\s*</script>', '', html)
+              html = html.replace('</head>', f'<base href="{base}/" /><link rel="stylesheet" href="{base}/assets/{css}" /></head>')
+              return re.sub(r'<script[^>]+type="module"[^>]*>\s*</script>', '', html)
+
+          for route in routes:
+              html = prepare(render(route))
+              target = Path('.output/public') / route / 'index.html' if route else Path('.output/public/index.html')
+              target.parent.mkdir(parents=True, exist_ok=True)
+              target.write_text(html)
+
+          # Keep a root fallback for unknown/dynamic routes while preserving route-specific pages above.
+          Path('.output/public/404.html').write_text(Path('.output/public/index.html').read_text())
           PY
-          cp .output/public/index.html .output/public/404.html
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
