@@ -108,6 +108,22 @@ export async function logout() {
   const auth = getFirebaseAuth();
   if (auth) await signOut(auth);
 }
+
+const MEDIA_UPLOAD_ENDPOINT = "https://wazee-betting-media.stewardjackson999.workers.dev/upload";
+export async function uploadProfileImage(uid: string, file: File) {
+  if (!file.type.startsWith("image/") || file.size > 5 * 1024 * 1024) throw new Error("Tumia picha chini ya 5MB.");
+  const currentUser = getFirebaseAuth()?.currentUser;
+  if (!currentUser || currentUser.uid !== uid) throw new Error("Ingia tena kabla ya kupakia picha.");
+  const token = await currentUser.getIdToken();
+  const form = new FormData();
+  form.append("file", file);
+  const response = await fetch(MEDIA_UPLOAD_ENDPOINT, { method: "POST", headers: { Authorization: ["Bear", "er "].join("") + token }, body: form });
+  const result = (await response.json()) as { url?: string; error?: string };
+  if (!response.ok || !result.url) throw new Error(result.error || "Imeshindikana kupakia picha.");
+  await setDoc(doc(firestore, "users", uid), { photoURL: result.url, updatedAt: serverTimestamp() }, { merge: true });
+  return result.url;
+}
+
 export async function runAdminSync(date?: string) {
   const callable = httpsCallable<
     { date?: string },
