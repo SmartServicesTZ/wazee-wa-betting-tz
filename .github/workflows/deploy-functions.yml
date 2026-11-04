@@ -19,7 +19,7 @@ jobs:
           node-version: 22
       - name: Check Firebase deployment credentials
         env:
-          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT || secrets.FIREBASE_SERVICES_ACCOUNT }}
         run: |
           if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
             echo "::error::Missing GitHub Actions secret FIREBASE_SERVICE_ACCOUNT. Add the Firebase service-account JSON in repository Settings > Secrets and variables > Actions."
