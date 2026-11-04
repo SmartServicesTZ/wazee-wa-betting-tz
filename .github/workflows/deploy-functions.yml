@@ -32,10 +32,10 @@ jobs:
       - name: Build functions
         working-directory: functions
         run: npm run build
-      - name: Deploy Firebase functions and rules
+      - name: Deploy Firebase functions
         working-directory: functions
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
           SPORTS_API_KEY: ${{ secrets.SPORTS_API_KEY }}
           SPORTS_API_BASE_URL: ${{ secrets.SPORTS_API_BASE_URL }}
-        run: npx firebase-tools deploy --only functions,firestore:rules --project wazee-wa-betting-tz-e7183 --non-interactive
+        run: npx firebase-tools deploy --only functions --project wazee-wa-betting-tz-e7183 --non-interactive
