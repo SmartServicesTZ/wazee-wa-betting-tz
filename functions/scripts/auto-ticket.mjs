@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { cert, getApps, initializeApp } from "firebase-admin/app";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 
@@ -9,16 +10,40 @@ const app = getApps().length ? getApps()[0] : initializeApp({ credential: cert(s
 const db = getFirestore(app);
 const apiBase = (process.env.SPORTS_API_BASE_URL ?? "https://v3.football.api-sports.io").replace(/\/$/, "");
 const apiKey = process.env.SPORTS_API_KEY;
-const maxOddsFixtures = Number(process.env.MAX_ODDS_FIXTURES ?? 6);
+const oddsCacheMs = 6 * 60 * 60 * 1000;
+const futureWindowMs = 36 * 60 * 60 * 1000;
+const maxOddsFixtures = Math.max(1, Math.min(3, Number(process.env.MAX_ODDS_FIXTURES ?? 3)));
+const maxApiRetries = 2;
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function writeLog(data) {
+  try {
+    await db.collection("api_logs").add({ ...data, createdAt: FieldValue.serverTimestamp() });
+  } catch (error) {
+    console.error("api_logs write failed:", error.message);
+  }
+}
 
 async function api(path, params = {}) {
   const url = new URL(`${apiBase}/${path.replace(/^\//, "")}`);
   for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
-  const response = await fetch(url, { headers: { "x-apisports-key": apiKey, Accept: "application/json" } });
-  if (!response.ok) throw new Error(`Sports API HTTP ${response.status}`);
-  const body = await response.json();
-  if (body.errors && Object.keys(body.errors).length) throw new Error(JSON.stringify(body.errors));
-  return body.response ?? [];
+  for (let attempt = 0; attempt <= maxApiRetries; attempt++) {
+    const response = await fetch(url, { headers: { "x-apisports-key": apiKey, Accept: "application/json" } });
+    if (response.ok) {
+      const body = await response.json();
+      if (body.errors && Object.keys(body.errors).length) throw new Error(JSON.stringify(body.errors));
+      return body.response ?? [];
+    }
+    if (response.status !== 429 || attempt === maxApiRetries) {
+      throw new Error(`Sports API HTTP ${response.status}`);
+    }
+    const retryAfter = Number(response.headers.get("retry-after"));
+    const delayMs = Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : 2500 * (attempt + 1);
+    console.warn(`Sports API 429 for ${path}; retry ${attempt + 1}/${maxApiRetries} after ${delayMs}ms`);
+    await sleep(delayMs);
+  }
+  throw new Error("Sports API request failed after retries.");
 }
 
 function normalizeFixture(raw) {
@@ -32,12 +57,17 @@ function normalizeFixture(raw) {
   };
 }
 
+function isUpcoming(match, now = Date.now()) {
+  const kickoff = new Date(String(match.kickoffAt)).getTime();
+  return Number.isFinite(kickoff) && kickoff > now && kickoff < now + futureWindowMs;
+}
+
 function normalizeOdds(response) {
   const markets = [];
   const bets = response?.[0]?.bookmakers?.[0]?.bets ?? [];
   for (const bet of bets) {
     const name = String(bet.name).toLowerCase();
-    const options = (bet.values ?? []).map((value) => ({ prediction: String(value.value), odds: Number(value.odd), line: value.handicap ? Number(value.handicap) : null })).filter((value) => Number.isFinite(value.odds));
+    const options = (bet.values ?? []).map((value) => ({ prediction: String(value.value), odds: Number(value.odd), line: value.handicap ? Number(value.handicap) : null })).filter((value) => Number.isFinite(value.odds) && value.odds > 1);
     let market = null;
     if (name.includes("match winner")) market = "1X2";
     else if (name.includes("double chance")) market = "DOUBLE_CHANCE";
@@ -50,35 +80,46 @@ function normalizeOdds(response) {
   return markets;
 }
 
+function timestampMillis(value) {
+  if (!value) return 0;
+  if (typeof value.toMillis === "function") return value.toMillis();
+  const millis = new Date(value).getTime();
+  return Number.isFinite(millis) ? millis : 0;
+}
+
+function hasFreshOdds(match) {
+  return Array.isArray(match.markets) && match.markets.length > 0 && timestampMillis(match.oddsFetchedAt) >= Date.now() - oddsCacheMs;
+}
+
 async function syncDate(date) {
   const fixtures = await api("fixtures", { date });
-  let synced = 0;
-  for (const raw of fixtures) {
-    const match = normalizeFixture(raw);
+  const futureFixtures = fixtures.map(normalizeFixture).filter(isUpcoming).sort((a, b) => new Date(a.kickoffAt) - new Date(b.kickoffAt));
+  for (const match of futureFixtures) {
     await db.collection("matches").doc(match.eventId).set({ ...match, externalProvider: "api-football", updatedAt: FieldValue.serverTimestamp() }, { merge: true });
-    synced++;
   }
-  for (const raw of fixtures.slice(0, maxOddsFixtures)) {
-    const match = normalizeFixture(raw);
+  let oddsFetched = 0;
+  for (const match of futureFixtures.slice(0, maxOddsFixtures)) {
+    const ref = db.collection("matches").doc(match.eventId);
+    const existing = await ref.get();
+    const existingData = existing.data() ?? {};
+    if (hasFreshOdds(existingData)) continue;
     try {
-      await db.collection("matches").doc(match.eventId).set({ markets: normalizeOdds(await api("odds", { fixture: match.eventId })), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      const markets = normalizeOdds(await api("odds", { fixture: match.eventId }));
+      await ref.set({ markets, oddsFetchedAt: FieldValue.serverTimestamp(), oddsSource: "api-football", updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      oddsFetched++;
     } catch (error) {
+      await writeLog({ type: "odds-fetch", ok: false, matchId: match.eventId, kickoffAt: match.kickoffAt, error: String(error) });
       console.error(`odds ${match.eventId}:`, error.message);
     }
   }
-  return synced;
-}
-
-function upcoming(match) {
-  const kickoff = new Date(String(match.kickoffAt)).getTime();
-  return Number.isFinite(kickoff) && kickoff > Date.now() && kickoff < Date.now() + 36 * 60 * 60 * 1000;
+  return { synced: futureFixtures.length, oddsFetched };
 }
 
 function chooseOption(match, settings) {
   const preferred = settings.risk === "LOW" ? ["DOUBLE_CHANCE", "DRAW_NO_BET", "OVER_UNDER", "BTTS"] : ["DOUBLE_CHANCE", "1X2", "DRAW_NO_BET", "OVER_UNDER", "BTTS"];
   for (const marketName of preferred) {
     const market = (match.markets ?? []).find((item) => item.market === marketName);
-    const option = (market?.options ?? []).map((item) => ({ ...item, odds: Number(item.odds) })).filter((item) => item.odds > 1 && item.odds <= settings.maxOddsPerSelection).sort((a, b) => a.odds - b.odds)[0];
+    const option = (market?.options ?? []).map((item) => ({ ...item, odds: Number(item.odds) })).filter((item) => item.odds > 1 && item.odds <= Number(settings.maxOddsPerSelection)).sort((a, b) => a.odds - b.odds)[0];
     if (option) return { market: marketName, ...option };
   }
   return null;
@@ -88,7 +129,7 @@ async function generateTicket() {
   const config = (await db.collection("automation").doc("config").get()).data() ?? {};
   const settings = { enabled: true, maxSelections: 5, maxOddsPerSelection: 1.65, maxTotalOdds: 12, risk: "LOW", ...config };
   if (!settings.enabled) return { created: false, reason: "disabled" };
-  const matches = (await db.collection("matches").orderBy("kickoffAt", "asc").limit(80).get()).docs.map((doc) => ({ id: doc.id, ...doc.data() })).filter(upcoming);
+  const matches = (await db.collection("matches").orderBy("kickoffAt", "asc").limit(80).get()).docs.map((doc) => ({ id: doc.id, ...doc.data() })).filter((match) => isUpcoming(match) && hasFreshOdds(match));
   const selections = [];
   for (const match of matches) {
     const option = chooseOption(match, settings);
@@ -97,21 +138,35 @@ async function generateTicket() {
     if (selections.length >= Math.max(2, Math.min(10, Number(settings.maxSelections)))) break;
   }
   const totalOdds = selections.reduce((total, selection) => total * Number(selection.odds), 1);
-  if (selections.length < 2 || totalOdds > Number(settings.maxTotalOdds)) return { created: false, reason: "not-enough-qualifying-selections" };
+  if (selections.length < 2 || totalOdds > Number(settings.maxTotalOdds)) return { created: false, reason: "not-enough-qualifying-selections", qualifyingSelections: selections.length };
+  const fingerprint = createHash("sha256").update(selections.map((item) => `${item.matchId}:${item.market}:${item.prediction}:${item.odds}`).sort().join("|"), "utf8").digest("hex");
+  const duplicate = await db.collection("tickets").where("automationFingerprint", "==", fingerprint).limit(1).get();
+  if (!duplicate.empty) return { created: false, reason: "duplicate-fingerprint", ticketId: duplicate.docs[0].id };
   const windowKey = new Date().toISOString().slice(0, 13);
-  const existing = await db.collection("tickets").where("automationWindow", "==", windowKey).limit(1).get();
-  if (!existing.empty) return { created: false, reason: "already-created", ticketId: existing.docs[0].id };
+  const sameWindow = await db.collection("tickets").where("automationWindow", "==", windowKey).limit(1).get();
+  if (!sameWindow.empty) return { created: false, reason: "already-created-this-window", ticketId: sameWindow.docs[0].id };
   const ticket = db.collection("tickets").doc();
   const batch = db.batch();
-  batch.set(ticket, { creatorId: "AUTO_BOT", creatorUsername: "wazee_betting_tz", creatorName: "Wazee wa Betting Tz", creatorPhotoURL: null, title: `Mkeka wa Automatic • ${new Date().toLocaleDateString("sw-TZ")}`, description: "Mkeka huu umetengenezwa na mfumo kwa kutumia odds na ratiba kutoka Sports API. Hakuna uhakika wa ushindi; cheza kwa uwajibikaji.", sport: "Football", risk: settings.risk, visibility: "PUBLIC", access: "FREE", totalOdds: Number(totalOdds.toFixed(2)), status: "PENDING", selectionCount: selections.length, automated: true, automationWindow: windowKey, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
+  batch.set(ticket, { creatorId: "AUTO_BOT", creatorUsername: "wazee_betting_tz", creatorName: "Wazee wa Betting Tz", creatorPhotoURL: null, title: `Mkeka wa Automatic • ${new Date().toLocaleDateString("sw-TZ")}`, description: "Mkeka huu umetengenezwa na mfumo kwa kutumia odds zilizothibitishwa kutoka Sports API. Hakuna uhakika wa ushindi; cheza kwa uwajibikaji.", sport: "Football", risk: settings.risk, visibility: "PUBLIC", access: "FREE", totalOdds: Number(totalOdds.toFixed(2)), status: "PENDING", selectionCount: selections.length, automated: true, automationWindow: windowKey, automationFingerprint: fingerprint, oddsVerifiedAt: FieldValue.serverTimestamp(), createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
   selections.forEach((selection, index) => batch.set(ticket.collection("selections").doc(String(index + 1)), { ...selection, kickoffAt: new Date(selection.kickoffAt), createdAt: FieldValue.serverTimestamp() }));
   await batch.commit();
-  return { created: true, ticketId: ticket.id, selections: selections.length, totalOdds: Number(totalOdds.toFixed(2)) };
+  return { created: true, ticketId: ticket.id, selections: selections.length, totalOdds: Number(totalOdds.toFixed(2)), fingerprint };
 }
 
-const today = new Date();
-const dates = [0, 1].map((offset) => { const date = new Date(today); date.setUTCDate(date.getUTCDate() + offset); return date.toISOString().slice(0, 10); });
-const synced = (await Promise.all(dates.map(syncDate))).reduce((sum, count) => sum + count, 0);
-const result = await generateTicket();
-await db.collection("api_logs").add({ type: "github-auto-ticket", ok: true, synced, result, createdAt: FieldValue.serverTimestamp() });
-console.log(JSON.stringify({ synced, result }));
+async function main() {
+  const today = new Date();
+  const dates = [0, 1].map((offset) => { const date = new Date(today); date.setUTCDate(date.getUTCDate() + offset); return date.toISOString().slice(0, 10); });
+  const syncResults = [];
+  for (const date of dates) syncResults.push({ date, ...(await syncDate(date)) });
+  const result = await generateTicket();
+  await writeLog({ type: "github-auto-ticket", ok: true, syncResults, result, quotaPolicy: { maxOddsFixtures, oddsCacheHours: 6, maxApiRetries } });
+  console.log(JSON.stringify({ syncResults, result }));
+}
+
+try {
+  await main();
+} catch (error) {
+  await writeLog({ type: "github-auto-ticket", ok: false, error: String(error), quotaPolicy: { maxOddsFixtures, oddsCacheHours: 6, maxApiRetries } });
+  console.error(error);
+  process.exitCode = 1;
+}
