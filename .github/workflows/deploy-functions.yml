@@ -6,7 +6,6 @@ on:
     paths:
       - "functions/**"
       - "firestore.rules"
-      - "storage.rules"
       - "firebase.json"
       - ".github/workflows/deploy-functions.yml"
 jobs:
@@ -39,4 +38,4 @@ jobs:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
           SPORTS_API_KEY: ${{ secrets.SPORTS_API_KEY }}
           SPORTS_API_BASE_URL: ${{ secrets.SPORTS_API_BASE_URL }}
-        run: npx firebase-tools deploy --only functions,firestore:rules,storage --project wazee-wa-betting-tz-e7183 --non-interactive
+        run: npx firebase-tools deploy --only functions,firestore:rules --project wazee-wa-betting-tz-e7183 --non-interactive
