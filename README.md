@@ -60,3 +60,9 @@ AUTH_SECRET=
 ```
 
 Sports API service inapaswa kuhifadhi `event_id`, league/team IDs na match time kabla ya settlement engine ku-settle selections. Status ya WON/LOST haipaswi kuwekwa bila final result kutoka source hiyo.
+
+## Automatic ticket generator
+
+Cloud Function `generateAutoTicket` hukimbia kila dakika 30 baada ya sports sync. Inachagua mechi za saa 36 zijazo zenye odds zinazofaa, hutengeneza ticket ya `PUBLIC` kutoka selections 2–5, na huweka snapshot ya odds kwenye Firestore. Deduplication ya saa huzuia ticket kurudiwa. Default ni risk `LOW`, odds ya selection hadi `1.65`, na total odds hadi `12`; settings zinaweza kuwekwa kwenye document ya server-only `automation/config` kwa kutumia Firebase Admin SDK. Mfumo hauahidi ushindi na haupost kwenye bookmaker; unachapisha kwenye feed ya website pekee.
+
+Ili automation ifanye kazi production, weka `SPORTS_API_KEY` kwenye GitHub Actions secret ya functions, deploy Cloud Functions, kisha hakikisha scheduler ya Firebase imewezeshwa. Telegram, WhatsApp au social posting ni integration tofauti na inahitaji channel moja ichaguliwe pamoja na credentials/idhini zake.

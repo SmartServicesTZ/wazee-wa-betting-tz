@@ -252,6 +252,78 @@ async function settle() {
   }
   return settled;
 }
+
+type AutoPickSettings = {
+  enabled: boolean;
+  maxSelections: number;
+  maxOddsPerSelection: number;
+  maxTotalOdds: number;
+  risk: "LOW" | "MEDIUM" | "HIGH";
+};
+const defaultAutoPickSettings: AutoPickSettings = {
+  enabled: true,
+  maxSelections: 5,
+  maxOddsPerSelection: 1.65,
+  maxTotalOdds: 12,
+  risk: "LOW",
+};
+function isUpcoming(match: any, now = Date.now()) {
+  const kickoff = new Date(String(match.kickoffAt)).getTime();
+  return Number.isFinite(kickoff) && kickoff > now && kickoff < now + 36 * 60 * 60 * 1000;
+}
+function chooseAutoOption(match: any, settings: AutoPickSettings) {
+  const markets = Array.isArray(match.markets) ? match.markets : [];
+  const preferred = settings.risk === "LOW"
+    ? ["DOUBLE_CHANCE", "DRAW_NO_BET", "OVER_UNDER", "BTTS"]
+    : ["DOUBLE_CHANCE", "1X2", "DRAW_NO_BET", "OVER_UNDER", "BTTS"];
+  for (const marketName of preferred) {
+    const market = markets.find((item: any) => item.market === marketName);
+    const options = (market?.options ?? [])
+      .map((option: any) => ({ ...option, odds: Number(option.odds) }))
+      .filter((option: any) => option.odds > 1 && option.odds <= settings.maxOddsPerSelection)
+      .sort((a: any, b: any) => a.odds - b.odds);
+    if (options.length) return { market: marketName, ...options[0] };
+  }
+  return null;
+}
+async function runAutoTicket() {
+  const configSnap = await db.collection("automation").doc("config").get();
+  const settings = { ...defaultAutoPickSettings, ...(configSnap.data() ?? {}) } as AutoPickSettings;
+  if (!settings.enabled) return { created: false, reason: "disabled" };
+  const matchesSnap = await db.collection("matches").orderBy("kickoffAt", "asc").limit(80).get();
+  const matches: any[] = matchesSnap.docs.map((item) => ({ id: item.id, ...item.data() })).filter(isUpcoming);
+  const selections: any[] = [];
+  for (const match of matches) {
+    const option = chooseAutoOption(match, settings);
+    if (!option || selections.some((item) => item.matchId === match.id)) continue;
+    selections.push({ matchId: match.id, market: option.market, line: option.line ?? null, prediction: String(option.prediction), odds: option.odds, homeTeam: match.homeTeamName, awayTeam: match.awayTeamName, kickoffAt: match.kickoffAt, leagueName: match.leagueName, status: "PENDING" });
+    if (selections.length >= Math.max(2, Math.min(10, settings.maxSelections))) break;
+  }
+  const totalOdds = selections.reduce((total, selection) => total * Number(selection.odds), 1);
+  if (selections.length < 2 || totalOdds > settings.maxTotalOdds) return { created: false, reason: "not-enough-qualifying-selections" };
+  const windowKey = new Date().toISOString().slice(0, 13);
+  const duplicate = await db.collection("tickets").where("automationWindow", "==", windowKey).limit(1).get();
+  if (!duplicate.empty) return { created: false, reason: "already-created", ticketId: duplicate.docs[0].id };
+  const ticketRef = db.collection("tickets").doc();
+  const batch = db.batch();
+  batch.set(ticketRef, { creatorId: "AUTO_BOT", creatorUsername: "wazee_betting_tz", creatorName: "Wazee wa Betting Tz", creatorPhotoURL: null, title: `Mkeka wa Automatic • ${new Date().toLocaleDateString("sw-TZ")}`, description: "Mkeka huu umetengenezwa na mfumo kwa kutumia odds na ratiba kutoka Sports API. Hakuna uhakika wa ushindi; cheza kwa uwajibikaji.", sport: "Football", risk: settings.risk, visibility: "PUBLIC", access: "FREE", totalOdds: Number(totalOdds.toFixed(2)), status: "PENDING", selectionCount: selections.length, automated: true, automationWindow: windowKey, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
+  selections.forEach((selection, index) => batch.set(ticketRef.collection("selections").doc(String(index + 1)), { ...selection, kickoffAt: new Date(selection.kickoffAt), createdAt: FieldValue.serverTimestamp() }));
+  await batch.commit();
+  return { created: true, ticketId: ticketRef.id, selections: selections.length, totalOdds };
+}
+export const generateAutoTicket = onSchedule({ schedule: "every 30 minutes", timeZone: "Africa/Dar_es_Salaam", region: "europe-west1" }, async () => {
+  try {
+    const result = await runAutoTicket();
+    await db.collection("api_logs").add({ type: "auto-ticket", ok: true, result, createdAt: FieldValue.serverTimestamp() });
+  } catch (e) {
+    console.error("auto ticket failed", e);
+    await db.collection("api_logs").add({ type: "auto-ticket", ok: false, error: String(e), createdAt: FieldValue.serverTimestamp() });
+  }
+});
+export const adminGenerateAutoTicket = onCall({ region: "europe-west1" }, async (request) => {
+  await assertAdmin(request);
+  try { return await runAutoTicket(); } catch (e) { console.error("manual auto ticket failed", e); throw new HttpsError("internal", "Auto ticket imeshindikana."); }
+});
 export const syncSports = onSchedule(
   { schedule: "every 10 minutes", timeZone: "Africa/Dar_es_Salaam", region: "europe-west1" },
   async () => {
