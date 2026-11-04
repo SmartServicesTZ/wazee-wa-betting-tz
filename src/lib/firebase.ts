@@ -17,27 +17,17 @@ import {
   setDoc,
   runTransaction,
 } from "firebase/firestore";
-import {
-  getDownloadURL,
-  getStorage,
-  ref,
-  uploadBytes,
-  type FirebaseStorage,
-} from "firebase/storage";
 import { getFunctions, httpsCallable } from "firebase/functions";
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY ?? "AIzaSyCMWh-yKE13mQ-SRA3lDugpHXV1kuVMBK8",
   authDomain:
     import.meta.env.VITE_FIREBASE_AUTH_DOMAIN ?? "wazee-wa-betting-tz-e7183.firebaseapp.com",
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID ?? "wazee-wa-betting-tz-e7183",
-  storageBucket:
-    import.meta.env.VITE_FIREBASE_STORAGE_BUCKET ?? "wazee-wa-betting-tz-e7183.firebasestorage.app",
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID ?? "790161817035",
   appId: import.meta.env.VITE_FIREBASE_APP_ID ?? "1:790161817035:web:f217cebf1fca1dcb240a4e",
 };
 export const firebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
 export const firestore = getFirestore(firebaseApp);
-export const storage: FirebaseStorage = getStorage(firebaseApp);
 export const functions = getFunctions(firebaseApp, "europe-west1");
 let authInstance: Auth | null = null;
 export function getFirebaseAuth() {
@@ -117,19 +107,6 @@ export async function loginWithPhone(phoneInput: string, password: string) {
 export async function logout() {
   const auth = getFirebaseAuth();
   if (auth) await signOut(auth);
-}
-export async function uploadProfileImage(uid: string, file: File) {
-  if (!file.type.startsWith("image/") || file.size > 5 * 1024 * 1024)
-    throw new Error("Tumia picha chini ya 5MB.");
-  const imageRef = ref(storage, "users/" + uid + "/avatar-" + Date.now() + "-" + file.name);
-  await uploadBytes(imageRef, file, { contentType: file.type });
-  const photoURL = await getDownloadURL(imageRef);
-  await setDoc(
-    doc(firestore, "users", uid),
-    { photoURL, updatedAt: serverTimestamp() },
-    { merge: true },
-  );
-  return photoURL;
 }
 export async function runAdminSync(date?: string) {
   const callable = httpsCallable<
