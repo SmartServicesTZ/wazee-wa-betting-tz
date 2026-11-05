@@ -499,3 +499,17 @@ html,body{background:#252833!important;color:#f7f7fa}
 
 /* Huduma-style account refresh action */
 .dashboard-refresh-row{display:flex;justify-content:flex-end;margin:12px 0 4px}.profile-refresh-link{width:100%;display:flex;align-items:center;gap:9px;padding:12px 14px;border:1px solid var(--line);border-radius:11px;background:var(--panel);color:var(--ink);font:inherit;font-size:13px;font-weight:750;text-align:left;cursor:pointer;transition:background .18s,border-color .18s}.profile-refresh-link:hover{border-color:var(--accent);background:#ffffff0b}.profile-refresh-link svg{color:var(--accent);flex:0 0 auto}
+
+
+/* Predictor trust and performance indicators */
+.predictor-badges{display:inline-flex;align-items:center;gap:5px;vertical-align:middle;flex-wrap:wrap}
+.account-verified{display:inline-flex;align-items:center;justify-content:center;color:#2495ff;filter:drop-shadow(0 1px 2px #2495ff33)}
+.predictor-rating{display:inline-flex;align-items:center;gap:4px;padding:3px 7px;border-radius:999px;font-size:11px;font-weight:800;line-height:1.2;white-space:nowrap}
+.predictor-red{color:#dc2626;background:#fee2e2}
+.predictor-blue{color:#2563eb;background:#dbeafe}
+.predictor-green{color:#15803d;background:#dcfce7}
+.predictor-neutral{color:#64748b;background:#e2e8f0}
+.predictor-stats-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:14px 0}
+.predictor-stat{padding:12px;border:1px solid var(--border);border-radius:14px;background:var(--card)}
+.predictor-stat small{display:block;color:var(--muted-foreground);font-size:11px}
+.predictor-stat strong{display:block;font-size:20px;margin-top:4px}
