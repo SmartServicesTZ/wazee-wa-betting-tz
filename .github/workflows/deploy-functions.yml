@@ -1,6 +1,11 @@
 name: Deploy Firebase Backend
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'functions/**'
+      - '.github/workflows/deploy-functions.yml'
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -31,4 +36,14 @@ jobs:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
           SPORTS_API_KEY: ${{ secrets.SPORTS_API_KEY }}
           SPORTS_API_BASE_URL: ${{ secrets.SPORTS_API_BASE_URL }}
-        run: npx firebase-tools deploy --only functions --project wazee-wa-betting-tz-e7183 --non-interactive
+        run: |
+          if [ -z "$SPORTS_API_KEY" ]; then
+            echo "::error::Missing GitHub Actions secret SPORTS_API_KEY. Add your API-Sports key in repository Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+          ENV_FILE=".env.wazee-wa-betting-tz-e7183"
+          printf 'SPORTS_API_KEY=%s\n' "$SPORTS_API_KEY" > "$ENV_FILE"
+          if [ -n "$SPORTS_API_BASE_URL" ]; then
+            printf 'SPORTS_API_BASE_URL=%s\n' "$SPORTS_API_BASE_URL" >> "$ENV_FILE"
+          fi
+          npx firebase-tools deploy --only functions --project wazee-wa-betting-tz-e7183 --non-interactive
