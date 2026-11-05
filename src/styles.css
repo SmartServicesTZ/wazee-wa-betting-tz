@@ -495,3 +495,7 @@ html,body{background:#252833!important;color:#f7f7fa}
 @media(max-width:390px){.gsb-feature-card{min-width:250px}.gsb-match-content{grid-template-columns:minmax(112px,.85fr) minmax(140px,1.15fr)}.gsb-odds-area{gap:4px}.gsb-odds-area>button{height:52px}.gsb-odds-area>button b{font-size:13px}.gsb-team-names b{font-size:11px}.gsb-main-tabs button{font-size:11px}}
 
 .gsb-auth-actions{display:flex;align-items:center;gap:8px}.gsb-auth-actions a{display:inline-flex;align-items:center;justify-content:center;padding:9px 13px;border-radius:6px;text-decoration:none;font-size:11px;font-weight:900;color:#fff;border:1px solid #a8bfdf}.gsb-auth-actions a:first-child{background:#ffe600;color:#1c2230;border-color:#ffe600}.gsb-auth-actions a:last-child{background:#19477f}@media(max-width:800px){.gsb-auth-actions a{padding:8px 9px;font-size:9px}.gsb-auth-actions{gap:5px}}
+
+
+/* Huduma-style account refresh action */
+.dashboard-refresh-row{display:flex;justify-content:flex-end;margin:12px 0 4px}.profile-refresh-link{width:100%;display:flex;align-items:center;gap:9px;padding:12px 14px;border:1px solid var(--line);border-radius:11px;background:var(--panel);color:var(--ink);font:inherit;font-size:13px;font-weight:750;text-align:left;cursor:pointer;transition:background .18s,border-color .18s}.profile-refresh-link:hover{border-color:var(--accent);background:#ffffff0b}.profile-refresh-link svg{color:var(--accent);flex:0 0 auto}
