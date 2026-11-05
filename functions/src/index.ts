@@ -336,29 +336,25 @@ export const syncSports = onSchedule(
         await syncDate(date);
       } catch (e) {
         console.error("sync failed", date, e);
-        await db
-          .collection("api_logs")
-          .add({
-            type: "sync",
-            date,
-            ok: false,
-            error: String(e),
-            createdAt: FieldValue.serverTimestamp(),
-          });
+        await db.collection("api_logs").add({
+          type: "sync",
+          date,
+          ok: false,
+          error: String(e),
+          createdAt: FieldValue.serverTimestamp(),
+        });
       }
     }
     try {
       await settle();
     } catch (e) {
       console.error("settlement failed", e);
-      await db
-        .collection("api_logs")
-        .add({
-          type: "settlement",
-          ok: false,
-          error: String(e),
-          createdAt: FieldValue.serverTimestamp(),
-        });
+      await db.collection("api_logs").add({
+        type: "settlement",
+        ok: false,
+        error: String(e),
+        createdAt: FieldValue.serverTimestamp(),
+      });
     }
   },
 );
@@ -371,28 +367,24 @@ export const adminSync = onCall({ region: "europe-west1" }, async (request) => {
     const date = String(request.data?.date ?? new Date().toISOString().slice(0, 10));
     const count = await syncDate(date);
     const settled = await settle();
-    await db
-      .collection("api_logs")
-      .add({
-        type: "manual-sync",
-        date,
-        count,
-        settled,
-        ok: true,
-        by: request.auth.uid,
-        createdAt: FieldValue.serverTimestamp(),
-      });
+    await db.collection("api_logs").add({
+      type: "manual-sync",
+      date,
+      count,
+      settled,
+      ok: true,
+      by: request.auth.uid,
+      createdAt: FieldValue.serverTimestamp(),
+    });
     return { ok: true, count, settled };
   } catch (e) {
-    await db
-      .collection("api_logs")
-      .add({
-        type: "manual-sync",
-        ok: false,
-        error: String(e),
-        by: request.auth.uid,
-        createdAt: FieldValue.serverTimestamp(),
-      });
+    await db.collection("api_logs").add({
+      type: "manual-sync",
+      ok: false,
+      error: String(e),
+      by: request.auth.uid,
+      createdAt: FieldValue.serverTimestamp(),
+    });
     throw new HttpsError("internal", "Sports synchronization failed.");
   }
 });
@@ -422,4 +414,116 @@ export const adminResetUserPassword = onCall({ region: "europe-west1" }, async (
     .collection("passwordResets")
     .add({ targetUid: uid, actorUid: auth.uid, createdAt: FieldValue.serverTimestamp() });
   return { ok: true };
+});
+
+type AdminRole = "USER" | "ADMIN" | "SUPER_ADMIN";
+type DashboardUser = {
+  uid: string;
+  displayName?: string;
+  firstName?: string;
+  lastName?: string;
+  username?: string;
+  phone?: string;
+  email?: string;
+  role: AdminRole;
+  disabled: boolean;
+  createdAt?: string;
+  ticketCount?: number;
+  winRate?: number;
+};
+
+export const adminDashboard = onCall({ region: "europe-west1" }, async (request) => {
+  await assertAdmin(request);
+  const [authUsers, profileSnap, ticketSnap, matchSnap, paymentSnap] = await Promise.all([
+    getAuth().listUsers(1000),
+    db.collection("users").limit(1000).get(),
+    db.collection("tickets").limit(1000).get(),
+    db.collection("matches").limit(1000).get(),
+    db.collection("payments").limit(1000).get(),
+  ]);
+  const profiles = new Map(profileSnap.docs.map((item) => [item.id, item.data()]));
+  const users: DashboardUser[] = authUsers.users.map((authUser) => {
+    const profile = profiles.get(authUser.uid) ?? {};
+    return {
+      uid: authUser.uid,
+      displayName: profile.displayName ?? authUser.displayName ?? undefined,
+      firstName: profile.firstName,
+      lastName: profile.lastName,
+      username: profile.username,
+      phone: profile.phone,
+      email: profile.email ?? authUser.email,
+      role: (profile.role ?? "USER") as AdminRole,
+      disabled: authUser.disabled,
+      createdAt: authUser.metadata.creationTime,
+      ticketCount: Number(profile.ticketCount ?? 0),
+      winRate: Number(profile.winRate ?? 0),
+    };
+  });
+  const byStatus = (status: string) =>
+    ticketSnap.docs.filter((item) => item.data().status === status).length;
+  const revenue = paymentSnap.docs.reduce((sum, item) => {
+    const value = Number(item.data().amount ?? 0);
+    return Number.isFinite(value) ? sum + value : sum;
+  }, 0);
+  const now = new Date();
+  const registrationTrend = Array.from({ length: 14 }, (_, index) => {
+    const date = new Date(now);
+    date.setDate(now.getDate() - (13 - index));
+    const key = date.toISOString().slice(0, 10);
+    return {
+      label: date.toLocaleDateString("sw-TZ", { day: "2-digit", month: "short" }),
+      count: users.filter((item) => item.createdAt?.slice(0, 10) === key).length,
+    };
+  });
+  return {
+    users,
+    registrationTrend,
+    metrics: {
+      users: users.length,
+      activeUsers: users.filter((item) => !item.disabled).length,
+      tickets: ticketSnap.size,
+      won: byStatus("WON"),
+      lost: byStatus("LOST"),
+      pending: byStatus("PENDING"),
+      matches: matchSnap.size,
+      revenue,
+    },
+  };
+});
+
+export const adminSetUserStatus = onCall({ region: "europe-west1" }, async (request) => {
+  await assertAdmin(request);
+  const uid = String(request.data?.uid ?? "");
+  const disabled = request.data?.disabled;
+  if (!uid || typeof disabled !== "boolean")
+    throw new HttpsError("invalid-argument", "UID na status vinahitajika.");
+  const target = await db.collection("users").doc(uid).get();
+  if (!target.exists) throw new HttpsError("not-found", "User profile haipo.");
+  if (target.data()?.role === "SUPER_ADMIN")
+    throw new HttpsError("permission-denied", "SUPER_ADMIN hawezi kuzuiwa.");
+  await getAuth().updateUser(uid, { disabled });
+  await db
+    .collection("users")
+    .doc(uid)
+    .set({ disabled, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  return { ok: true, disabled };
+});
+
+export const adminSetUserRole = onCall({ region: "europe-west1" }, async (request) => {
+  await assertAdmin(request);
+  const actor = await db.collection("users").doc(request.auth!.uid).get();
+  if (actor.data()?.role !== "SUPER_ADMIN")
+    throw new HttpsError("permission-denied", "SUPER_ADMIN only.");
+  const uid = String(request.data?.uid ?? "");
+  const role = String(request.data?.role ?? "") as AdminRole;
+  if (!uid || !["USER", "ADMIN"].includes(role))
+    throw new HttpsError("invalid-argument", "UID na role halali vinahitajika.");
+  const target = await db.collection("users").doc(uid).get();
+  if (!target.exists || target.data()?.role === "SUPER_ADMIN")
+    throw new HttpsError("permission-denied", "Akaunti hii haiwezi kubadilishwa.");
+  await db
+    .collection("users")
+    .doc(uid)
+    .set({ role, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  return { ok: true, role };
 });

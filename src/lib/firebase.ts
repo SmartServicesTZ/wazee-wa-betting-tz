@@ -187,3 +187,53 @@ export async function adminResetUserPassword(uid: string, password: string) {
   );
   return (await callable({ uid, password })).data;
 }
+
+export type AdminUser = {
+  uid: string;
+  displayName?: string;
+  firstName?: string;
+  lastName?: string;
+  username?: string;
+  phone?: string;
+  email?: string;
+  role: "USER" | "ADMIN" | "SUPER_ADMIN";
+  disabled: boolean;
+  createdAt?: string;
+  ticketCount?: number;
+  winRate?: number;
+};
+export type AdminDashboardData = {
+  users: AdminUser[];
+  registrationTrend: { label: string; count: number }[];
+  metrics: {
+    users: number;
+    activeUsers: number;
+    tickets: number;
+    won: number;
+    lost: number;
+    pending: number;
+    matches: number;
+    revenue: number;
+  };
+};
+export async function adminDashboard() {
+  const callable = httpsCallable<Record<string, never>, AdminDashboardData>(
+    functions,
+    "adminDashboard",
+  );
+  return (await callable({})).data;
+}
+export async function adminSetUserStatus(uid: string, disabled: boolean) {
+  const callable = httpsCallable<
+    { uid: string; disabled: boolean },
+    { ok: boolean; disabled: boolean }
+  >(functions, "adminSetUserStatus");
+  return (await callable({ uid, disabled })).data;
+}
+export async function adminSetUserRole(uid: string, role: "USER" | "ADMIN") {
+  const callable = httpsCallable<
+    { uid: string; role: "USER" | "ADMIN" },
+    { ok: boolean; role: string }
+  >(functions, "adminSetUserRole");
+  return (await callable({ uid, role })).data;
+}
