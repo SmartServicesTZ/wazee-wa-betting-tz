@@ -50,7 +50,7 @@ jobs:
           import subprocess
 
           base = '/wazee-wa-betting-tz'
-          routes = ['', 'login', 'register', 'community', 'matches', 'leaderboard', 'create-ticket', 'dashboard', 'admin']
+          routes = ['', 'login', 'register', 'community', 'matches', 'leaderboard', 'create-ticket', 'dashboard', 'admin', 'terms']
           css = os.environ['CSS_FILE']
           entry = os.environ['ENTRY_FILE']
 

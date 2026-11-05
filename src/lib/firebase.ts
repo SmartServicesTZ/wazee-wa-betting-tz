@@ -289,6 +289,34 @@ export type AutoConfig = {
   leagueIds?: string[];
   markets?: string[];
 };
+export type AdminSiteSettings = {
+  siteName: string;
+  logoUrl: string;
+  supportWhatsApp: string;
+  terms: string;
+  notifications: { ticketUpdates: boolean; results: boolean; announcements: boolean };
+  announcement: {
+    enabled: boolean;
+    title: string;
+    message: string;
+    tone: "info" | "success" | "warning";
+  };
+  sportsApi: { configured: boolean; baseUrl: string };
+};
+export async function adminGetSiteSettings() {
+  const callable = httpsCallable<Record<string, never>, AdminSiteSettings>(
+    functions,
+    "adminGetSiteSettings",
+  );
+  return (await callable({})).data;
+}
+export async function adminSaveSiteSettings(settings: AdminSiteSettings) {
+  const callable = httpsCallable<AdminSiteSettings, { ok: boolean; settings: AdminSiteSettings }>(
+    functions,
+    "adminSaveSiteSettings",
+  );
+  return (await callable(settings)).data;
+}
 export async function adminMatchData() {
   const callable = httpsCallable<
     Record<string, never>,
@@ -315,6 +343,28 @@ export async function adminGenerateAutoTicket() {
     }
   >(functions, "adminGenerateAutoTicket");
   return (await callable({})).data;
+}
+export async function adminUpdateTicket(
+  ticketId: string,
+  action: "visibility" | "title",
+  payload: { visibility?: "PUBLIC" | "PRIVATE"; title?: string },
+) {
+  const callable = httpsCallable<
+    { ticketId: string; action: string; visibility?: string; title?: string },
+    { ok: boolean; visibility?: string; title?: string }
+  >(functions, "adminUpdateTicket");
+  return (await callable({ ticketId, action, ...payload })).data;
+}
+export async function adminDeleteTicket(ticketId: string) {
+  const callable = httpsCallable<{ ticketId: string }, { ok: boolean }>(
+    functions,
+    "adminDeleteTicket",
+  );
+  return (await callable({ ticketId })).data;
+}
+export async function adminAuditEvent(action: "report.exported") {
+  const callable = httpsCallable<{ action: string }, { ok: boolean }>(functions, "adminAuditEvent");
+  return (await callable({ action })).data;
 }
 export async function adminCreateTicket(input: {
   ticketId?: string;
