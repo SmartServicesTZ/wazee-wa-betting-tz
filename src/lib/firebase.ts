@@ -21,7 +21,8 @@ import {
 import { getFunctions, httpsCallable } from "firebase/functions";
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY ?? "AIzaSyCMWh-yKE13mQ-SRA3lDugpHXV1kuVMBK8",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN ?? "wazee-wa-betting-tz-e7183.firebaseapp.com",
+  authDomain:
+    import.meta.env.VITE_FIREBASE_AUTH_DOMAIN ?? "wazee-wa-betting-tz-e7183.firebaseapp.com",
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID ?? "wazee-wa-betting-tz-e7183",
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID ?? "790161817035",
   appId: import.meta.env.VITE_FIREBASE_APP_ID ?? "1:790161817035:web:f217cebf1fca1dcb240a4e",
@@ -52,11 +53,19 @@ function phoneLoginEmail(phone: string) {
 }
 function authErrorMessage(error: unknown, fallback: string) {
   const code = typeof error === "object" && error && "code" in error ? String(error.code) : "";
-  if (code.includes("email-already-in-use")) return "Namba hii tayari ina akaunti. Tumia Ingia au wasiliana na msaada WhatsApp.";
-  if (code.includes("invalid-credential") || code.includes("wrong-password") || code.includes("user-not-found")) return "Namba ya simu au password si sahihi.";
+  if (code.includes("email-already-in-use"))
+    return "Namba hii tayari ina akaunti. Tumia Ingia au wasiliana na msaada WhatsApp.";
+  if (
+    code.includes("invalid-credential") ||
+    code.includes("wrong-password") ||
+    code.includes("user-not-found")
+  )
+    return "Namba ya simu au password si sahihi.";
   if (code.includes("weak-password")) return "Password iwe na angalau herufi/namba 6.";
-  if (code.includes("network-request-failed")) return "Mtandao umekatika. Hakikisha internet kisha jaribu tena.";
-  if (code.includes("too-many-requests")) return "Majaribio yamezidi. Subiri kidogo kisha jaribu tena.";
+  if (code.includes("network-request-failed"))
+    return "Mtandao umekatika. Hakikisha internet kisha jaribu tena.";
+  if (code.includes("too-many-requests"))
+    return "Majaribio yamezidi. Subiri kidogo kisha jaribu tena.";
   if (error instanceof Error && error.message) return error.message;
   return fallback;
 }
@@ -86,7 +95,9 @@ export async function registerWithPhone(
     try {
       accountUser = (await signInWithEmailAndPassword(auth, email, password)).user;
     } catch {
-      throw new Error("Namba hii tayari ina akaunti. Ingia kwa password yako au wasiliana na msaada WhatsApp.");
+      throw new Error(
+        "Namba hii tayari ina akaunti. Ingia kwa password yako au wasiliana na msaada WhatsApp.",
+      );
     }
     const existingProfile = await getDoc(doc(firestore, "users", accountUser.uid));
     if (existingProfile.exists()) {
@@ -104,7 +115,8 @@ export async function registerWithPhone(
     await runTransaction(firestore, async (tx) => {
       const usernameRef = doc(firestore, "usernames", username);
       const existingUsername = await tx.get(usernameRef);
-      if (existingUsername.exists()) throw new Error("Namba hii tayari imetumika. Wasiliana na msaada WhatsApp.");
+      if (existingUsername.exists())
+        throw new Error("Namba hii tayari imetumika. Wasiliana na msaada WhatsApp.");
       tx.set(usernameRef, { uid: accountUser.uid, createdAt: serverTimestamp() });
       tx.set(doc(firestore, "users", accountUser.uid), {
         uid: accountUser.uid,
@@ -160,16 +172,26 @@ export async function logout() {
 
 const MEDIA_UPLOAD_ENDPOINT = "https://wazee-betting-media.stewardjackson999.workers.dev/upload";
 export async function uploadProfileImage(uid: string, file: File) {
-  if (!file.type.startsWith("image/") || file.size > 5 * 1024 * 1024) throw new Error("Tumia picha chini ya 5MB.");
+  if (!file.type.startsWith("image/") || file.size > 5 * 1024 * 1024)
+    throw new Error("Tumia picha chini ya 5MB.");
   const currentUser = getFirebaseAuth()?.currentUser;
-  if (!currentUser || currentUser.uid !== uid) throw new Error("Ingia tena kabla ya kupakia picha.");
+  if (!currentUser || currentUser.uid !== uid)
+    throw new Error("Ingia tena kabla ya kupakia picha.");
   const token = await currentUser.getIdToken();
   const form = new FormData();
   form.append("file", file);
-  const response = await fetch(MEDIA_UPLOAD_ENDPOINT, { method: "POST", headers: { Authorization: ["Bear", "er "].join("") + token }, body: form });
+  const response = await fetch(MEDIA_UPLOAD_ENDPOINT, {
+    method: "POST",
+    headers: { Authorization: ["Bear", "er "].join("") + token },
+    body: form,
+  });
   const result = (await response.json()) as { url?: string; error?: string };
   if (!response.ok || !result.url) throw new Error(result.error || "Imeshindikana kupakia picha.");
-  await setDoc(doc(firestore, "users", uid), { photoURL: result.url, updatedAt: serverTimestamp() }, { merge: true });
+  await setDoc(
+    doc(firestore, "users", uid),
+    { photoURL: result.url, updatedAt: serverTimestamp() },
+    { merge: true },
+  );
   return result.url;
 }
 
@@ -237,3 +259,75 @@ export async function adminSetUserRole(uid: string, role: "USER" | "ADMIN") {
   >(functions, "adminSetUserRole");
   return (await callable({ uid, role })).data;
 }
+export type AdminMatch = {
+  id: string;
+  eventId?: string;
+  leagueId?: string;
+  leagueName?: string;
+  homeTeamName?: string;
+  awayTeamName?: string;
+  kickoffAt?: string;
+  status?: string;
+  homeScore?: number | null;
+  awayScore?: number | null;
+  resultSource?: string | null;
+  resultVerifiedAt?: unknown;
+  markets?: {
+    market: string;
+    options: { prediction: string; odds: number; line?: number | null }[];
+  }[];
+};
+export type AutoConfig = {
+  enabled: boolean;
+  minSelections: number;
+  maxSelections: number;
+  minOddsPerSelection: number;
+  maxOddsPerSelection: number;
+  minTotalOdds: number;
+  maxTotalOdds: number;
+  risk: "LOW" | "MEDIUM" | "HIGH";
+  leagueIds?: string[];
+  markets?: string[];
+};
+export async function adminMatchData() {
+  const callable = httpsCallable<
+    Record<string, never>,
+    { matches: AdminMatch[]; autoConfig: AutoConfig; logs: RowLike[] }
+  >(functions, "adminMatchData");
+  return (await callable({})).data;
+}
+export async function adminSetAutoConfig(config: AutoConfig) {
+  const callable = httpsCallable<AutoConfig, { ok: boolean; config: AutoConfig }>(
+    functions,
+    "adminSetAutoConfig",
+  );
+  return (await callable(config)).data;
+}
+export async function adminGenerateAutoTicket() {
+  const callable = httpsCallable<
+    Record<string, never>,
+    {
+      created: boolean;
+      reason?: string;
+      ticketId?: string;
+      selections?: number;
+      totalOdds?: number;
+    }
+  >(functions, "adminGenerateAutoTicket");
+  return (await callable({})).data;
+}
+export async function adminCreateTicket(input: {
+  ticketId?: string;
+  title: string;
+  description?: string;
+  visibility: "PUBLIC" | "PRIVATE";
+  risk: "LOW" | "MEDIUM" | "HIGH";
+  selections: { matchId: string; market: string; prediction: string; odds: number }[];
+}) {
+  const callable = httpsCallable<
+    typeof input,
+    { ok: boolean; ticketId: string; totalOdds: number; selectionCount: number }
+  >(functions, "adminCreateTicket");
+  return (await callable(input)).data;
+}
+type RowLike = { id: string; [key: string]: unknown };

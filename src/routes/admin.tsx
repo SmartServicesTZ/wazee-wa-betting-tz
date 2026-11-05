@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Activity,
   BarChart3,
+  CalendarDays,
   CheckCircle2,
   ChevronRight,
   CreditCard,
@@ -39,6 +40,10 @@ import { toast } from "sonner";
 import { AppShell } from "../components/app-shell";
 import {
   adminDashboard,
+  adminCreateTicket,
+  adminGenerateAutoTicket,
+  adminMatchData,
+  adminSetAutoConfig,
   adminSetUserRole,
   adminSetUserStatus,
   firestore,
@@ -46,17 +51,20 @@ import {
   runAdminSync,
   subscribeToAuth,
   type AdminDashboardData,
+  type AdminMatch,
+  type AutoConfig,
   type AdminUser,
 } from "../lib/firebase";
 import { getUserProfile } from "../lib/firestore";
 
 export const Route = createFileRoute("/admin")({ component: Admin });
-type Section = "overview" | "users" | "tickets" | "reports" | "payments" | "logs";
+type Section = "overview" | "users" | "tickets" | "matches" | "reports" | "payments" | "logs";
 type Row = { id: string; [key: string]: unknown };
 const sections: { id: Section; label: string; icon: typeof Activity }[] = [
   { id: "overview", label: "Muhtasari", icon: LayoutDashboard },
   { id: "users", label: "Watumiaji", icon: Users },
   { id: "tickets", label: "Tiketi", icon: Ticket },
+  { id: "matches", label: "Mechi / Odds", icon: CalendarDays },
   { id: "reports", label: "Ripoti", icon: Flag },
   { id: "payments", label: "Malipo", icon: CreditCard },
   { id: "logs", label: "API / Logs", icon: Activity },
@@ -78,6 +86,9 @@ function Admin() {
   const [reports, setReports] = useState<Row[]>([]);
   const [payments, setPayments] = useState<Row[]>([]);
   const [logs, setLogs] = useState<Row[]>([]);
+  const [matches, setMatches] = useState<AdminMatch[]>([]);
+  const [autoConfig, setAutoConfig] = useState<AutoConfig | null>(null);
+  const [autoLogs, setAutoLogs] = useState<Row[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -112,18 +123,22 @@ function Admin() {
     if (!isAdmin) return;
     setLoading(true);
     try {
-      const [summary, ticketSnap, reportSnap, paymentSnap, logSnap] = await Promise.all([
+      const [summary, ticketSnap, reportSnap, paymentSnap, logSnap, matchData] = await Promise.all([
         adminDashboard(),
         getDocs(query(collection(firestore, "tickets"), orderBy("createdAt", "desc"), limit(100))),
         getDocs(query(collection(firestore, "reports"), orderBy("createdAt", "desc"), limit(100))),
         getDocs(query(collection(firestore, "payments"), orderBy("createdAt", "desc"), limit(100))),
         getDocs(query(collection(firestore, "api_logs"), orderBy("createdAt", "desc"), limit(30))),
+        adminMatchData(),
       ]);
       setData(summary);
       setTickets(ticketSnap.docs.map((item) => ({ id: item.id, ...item.data() })));
       setReports(reportSnap.docs.map((item) => ({ id: item.id, ...item.data() })));
       setPayments(paymentSnap.docs.map((item) => ({ id: item.id, ...item.data() })));
       setLogs(logSnap.docs.map((item) => ({ id: item.id, ...item.data() })));
+      setMatches(matchData.matches);
+      setAutoConfig(matchData.autoConfig);
+      setAutoLogs(matchData.logs);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Imeshindikana kupakia dashboard.");
     } finally {
@@ -252,6 +267,22 @@ function Admin() {
       toast.error(error instanceof Error ? error.message : "Imeshindikana kufuta tiketi.");
     }
   };
+  const editTicket = async (ticket: Row) => {
+    const title = window.prompt("Jina jipya la tiketi", String(ticket.title ?? ""));
+    if (!title?.trim()) return;
+    try {
+      await updateDoc(doc(firestore, "tickets", ticket.id), {
+        title: title.trim(),
+        updatedAt: new Date(),
+      });
+      setTickets((items) =>
+        items.map((item) => (item.id === ticket.id ? { ...item, title: title.trim() } : item)),
+      );
+      toast.success("Tiketi imehaririwa.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Imeshindikana kuhariri tiketi.");
+    }
+  };
   return (
     <AppShell user={user}>
       <div className="admin-layout">
@@ -349,23 +380,51 @@ function Admin() {
             />
           )}
           {section === "tickets" && (
-            <TicketsSection tickets={tickets} onToggle={toggleTicket} onDelete={removeTicket} />
+            <TicketsSection
+              tickets={tickets}
+              matches={matches}
+              onToggle={toggleTicket}
+              onDelete={removeTicket}
+              onEdit={editTicket}
+              onCreated={load}
+            />
+          )}
+          {section === "matches" && autoConfig && (
+            <MatchesSection
+              matches={matches}
+              config={autoConfig}
+              logs={autoLogs}
+              onConfig={async (next) => {
+                try {
+                  const result = await adminSetAutoConfig(next);
+                  setAutoConfig(result.config);
+                  toast.success("Mipangilio ya automatic tickets imehifadhiwa.");
+                } catch (error) {
+                  toast.error(
+                    error instanceof Error ? error.message : "Imeshindikana kuhifadhi config.",
+                  );
+                }
+              }}
+              onGenerate={async () => {
+                try {
+                  const result = await adminGenerateAutoTicket();
+                  if (result.created)
+                    toast.success(`Automatic ticket imetengenezwa: ${result.selections} mechi.`);
+                  else
+                    toast.info(
+                      `Hakuna ticket iliyotengenezwa: ${result.reason ?? "hakuna qualifying data"}.`,
+                    );
+                  await load();
+                } catch (error) {
+                  toast.error(
+                    error instanceof Error ? error.message : "Automatic ticket imeshindikana.",
+                  );
+                }
+              }}
+            />
           )}
           {section === "reports" && (
-            <RowsSection
-              title="Ripoti za jamii"
-              rows={reports}
-              empty="Hakuna ripoti zilizopokelewa."
-              render={(row) => (
-                <>
-                  <b>{String(row.reason ?? row.type ?? "Ripoti")}</b>
-                  <small>{String(row.description ?? row.details ?? "Hakuna maelezo")}</small>
-                  <span>
-                    Reporter: {String(row.reporterId ?? "—")} · {fmt(row.createdAt)}
-                  </span>
-                </>
-              )}
-            />
+            <ReportsSection reports={reports} onExport={() => exportRows("reports.csv", reports)} />
           )}
           {section === "payments" && (
             <RowsSection
@@ -637,23 +696,143 @@ function UsersSection({
 }
 function TicketsSection({
   tickets,
+  matches,
   onToggle,
   onDelete,
+  onEdit,
+  onCreated,
 }: {
   tickets: Row[];
+  matches: AdminMatch[];
   onToggle: (row: Row) => void;
   onDelete: (row: Row) => void;
+  onEdit: (row: Row) => void;
+  onCreated: () => Promise<void>;
 }) {
+  const [open, setOpen] = useState(false);
+  const [title, setTitle] = useState("");
+  const [visibility, setVisibility] = useState<"PUBLIC" | "PRIVATE">("PUBLIC");
+  const [selectionValue, setSelectionValue] = useState("");
+  const [selections, setSelections] = useState<
+    { matchId: string; market: string; prediction: string; odds: number }[]
+  >([]);
+  const [saving, setSaving] = useState(false);
+  const addSelection = () => {
+    const [matchId, market, prediction, odds] = selectionValue.split("||");
+    if (!matchId || selections.some((item) => item.matchId === matchId)) return;
+    setSelections((items) => [...items, { matchId, market, prediction, odds: Number(odds) }]);
+    setSelectionValue("");
+  };
+  const create = async () => {
+    if (!title.trim() || !selections.length) return;
+    setSaving(true);
+    try {
+      await adminCreateTicket({ title: title.trim(), visibility, risk: "MEDIUM", selections });
+      toast.success("Tiketi imetengenezwa kwa odds zilizothibitishwa.");
+      setTitle("");
+      setSelections([]);
+      setOpen(false);
+      await onCreated();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Imeshindikana kutengeneza tiketi.");
+    } finally {
+      setSaving(false);
+    }
+  };
   return (
     <div className="admin-content">
       <div className="admin-section-heading">
         <div>
           <span className="admin-kicker">CONTENT MODERATION</span>
           <h2>Tiketi</h2>
-          <p>Angalia na simamia tiketi zilizopo kwenye Firestore.</p>
+          <p>Angalia, tengeneza na simamia tiketi zilizopo kwenye Firestore.</p>
         </div>
-        <span className="admin-count">{tickets.length} loaded</span>
+        <div className="admin-row-actions">
+          <span className="admin-count">{tickets.length} loaded</span>
+          <button className="admin-sync" onClick={() => setOpen((value) => !value)}>
+            {open ? "Funga" : "+ Tiketi mpya"}
+          </button>
+        </div>
       </div>
+      {open && (
+        <div className="admin-card ticket-composer">
+          <div className="admin-kicker">VERIFIED SPORTS API BUILDER</div>
+          <h3>Tengeneza tiketi mpya</h3>
+          <p className="composer-note">
+            Odds na selections lazima ziwepo kwenye match data ya Sports API; hakuna odds za
+            kuingiza kwa mkono.
+          </p>
+          <div className="composer-grid">
+            <label>
+              Jina la tiketi
+              <input
+                value={title}
+                onChange={(event) => setTitle(event.target.value)}
+                placeholder="Mkeka wa leo"
+              />
+            </label>
+            <label>
+              Visibility
+              <select
+                value={visibility}
+                onChange={(event) => setVisibility(event.target.value as "PUBLIC" | "PRIVATE")}
+              >
+                <option value="PUBLIC">PUBLIC</option>
+                <option value="PRIVATE">PRIVATE</option>
+              </select>
+            </label>
+          </div>
+          <div className="composer-add">
+            <select
+              value={selectionValue}
+              onChange={(event) => setSelectionValue(event.target.value)}
+            >
+              <option value="">Chagua mechi na odds...</option>
+              {matches
+                .filter((match) => String(match.status ?? "").toUpperCase() !== "PST")
+                .map((match) =>
+                  (match.markets ?? []).flatMap((market) =>
+                    (market.options ?? []).map((option) => (
+                      <option
+                        key={`${match.id}-${market.market}-${option.prediction}-${option.odds}`}
+                        value={`${match.id}||${market.market}||${option.prediction}||${option.odds}`}
+                      >
+                        {match.homeTeamName} v {match.awayTeamName} · {market.market}{" "}
+                        {option.prediction} @ {option.odds}
+                      </option>
+                    )),
+                  ),
+                )}
+            </select>
+            <button className="admin-outline" onClick={addSelection}>
+              Ongeza
+            </button>
+          </div>
+          <div className="composer-selections">
+            {selections.map((item) => (
+              <span key={item.matchId}>
+                {item.market} {item.prediction} @ {item.odds}{" "}
+                <button
+                  onClick={() =>
+                    setSelections((current) =>
+                      current.filter((value) => value.matchId !== item.matchId),
+                    )
+                  }
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+          <button
+            className="admin-sync"
+            disabled={saving || !title.trim() || !selections.length}
+            onClick={() => void create()}
+          >
+            {saving ? "Inatengeneza..." : "Tengeneza tiketi"}
+          </button>
+        </div>
+      )}
       <div className="admin-card admin-list-card">
         {tickets.length ? (
           tickets.map((item) => (
@@ -683,6 +862,9 @@ function TicketsSection({
                 </span>
               </div>
               <div className="admin-row-actions">
+                <button className="row-action" onClick={() => onEdit(item)}>
+                  Hariri
+                </button>
                 <button className="row-action" onClick={() => onToggle(item)}>
                   {item.visibility === "PUBLIC" ? <EyeOff size={14} /> : <Eye size={14} />}
                   {item.visibility === "PUBLIC" ? "Ficha" : "Onyesha"}
@@ -703,6 +885,273 @@ function TicketsSection({
     </div>
   );
 }
+function MatchesSection({
+  matches,
+  config,
+  logs,
+  onConfig,
+  onGenerate,
+}: {
+  matches: AdminMatch[];
+  config: AutoConfig;
+  logs: Row[];
+  onConfig: (config: AutoConfig) => Promise<void>;
+  onGenerate: () => Promise<void>;
+}) {
+  const [draft, setDraft] = useState(config);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => setDraft(config), [config]);
+  const save = async () => {
+    setSaving(true);
+    try {
+      await onConfig(draft);
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <div className="admin-content">
+      <div className="admin-section-heading">
+        <div>
+          <span className="admin-kicker">SPORTS API / VERIFIED RESULTS</span>
+          <h2>Mechi na Automatic Tickets</h2>
+          <p>
+            Mechi, odds na matokeo hapa hutoka Sports API pekee. Matokeo yasiyo na source hayasettle
+            tickets.
+          </p>
+        </div>
+        <span className="admin-count">{matches.length} matches</span>
+      </div>
+      <div className="admin-columns">
+        <div className="admin-card">
+          <div className="admin-card-head">
+            <div>
+              <span className="admin-kicker">FIXTURES</span>
+              <h3>Mechi zilizohifadhiwa</h3>
+            </div>
+            <CalendarDays size={20} />
+          </div>
+          <div className="admin-list-card">
+            {matches.length ? (
+              matches.slice(0, 80).map((match) => (
+                <div className="admin-list-row" key={match.id}>
+                  <div className="admin-avatar small">
+                    <Trophy size={15} />
+                  </div>
+                  <div className="admin-list-main">
+                    <div>
+                      <b>
+                        {match.homeTeamName} v {match.awayTeamName}
+                      </b>
+                      <span
+                        className={`status ${match.resultSource ? "status-won" : "status-pending"}`}
+                      >
+                        {match.status ?? "—"}
+                      </span>
+                    </div>
+                    <small>
+                      {match.leagueName ?? "—"} ·{" "}
+                      {match.kickoffAt ? new Date(match.kickoffAt).toLocaleString("sw-TZ") : "—"}
+                    </small>
+                    <span>
+                      {match.homeScore ?? "—"} - {match.awayScore ?? "—"} ·{" "}
+                      {match.markets?.length ?? 0} markets ·{" "}
+                      {match.resultSource
+                        ? `Source: ${match.resultSource}`
+                        : "Result haijathibitishwa"}
+                    </span>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="admin-empty compact">
+                <CalendarDays size={22} />
+                <b>Hakuna mechi kutoka Sports API.</b>
+                <span>Fanya Sync data; ikiwa API imefika limit, error itaonekana kwenye Logs.</span>
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="admin-card">
+          <div className="admin-card-head">
+            <div>
+              <span className="admin-kicker">AUTOMATION POLICY</span>
+              <h3>Automatic Tickets</h3>
+            </div>
+            <Activity size={20} />
+          </div>
+          <label className="toggle-line">
+            <input
+              type="checkbox"
+              checked={draft.enabled}
+              onChange={(event) => setDraft({ ...draft, enabled: event.target.checked })}
+            />{" "}
+            Iwezeshwe
+          </label>
+          <div className="composer-grid">
+            <label>
+              Min mechi
+              <input
+                type="number"
+                min="2"
+                max="10"
+                value={draft.minSelections}
+                onChange={(event) =>
+                  setDraft({ ...draft, minSelections: Number(event.target.value) })
+                }
+              />
+            </label>
+            <label>
+              Max mechi
+              <input
+                type="number"
+                min="2"
+                max="10"
+                value={draft.maxSelections}
+                onChange={(event) =>
+                  setDraft({ ...draft, maxSelections: Number(event.target.value) })
+                }
+              />
+            </label>
+            <label>
+              Min odds/selection
+              <input
+                type="number"
+                step="0.01"
+                value={draft.minOddsPerSelection}
+                onChange={(event) =>
+                  setDraft({ ...draft, minOddsPerSelection: Number(event.target.value) })
+                }
+              />
+            </label>
+            <label>
+              Max odds/selection
+              <input
+                type="number"
+                step="0.01"
+                value={draft.maxOddsPerSelection}
+                onChange={(event) =>
+                  setDraft({ ...draft, maxOddsPerSelection: Number(event.target.value) })
+                }
+              />
+            </label>
+            <label>
+              Min total odds
+              <input
+                type="number"
+                step="0.01"
+                value={draft.minTotalOdds}
+                onChange={(event) =>
+                  setDraft({ ...draft, minTotalOdds: Number(event.target.value) })
+                }
+              />
+            </label>
+            <label>
+              Max total odds
+              <input
+                type="number"
+                step="0.01"
+                value={draft.maxTotalOdds}
+                onChange={(event) =>
+                  setDraft({ ...draft, maxTotalOdds: Number(event.target.value) })
+                }
+              />
+            </label>
+          </div>
+          <div className="admin-row-actions">
+            <button className="admin-outline" disabled={saving} onClick={() => void save()}>
+              {saving ? "Inahifadhi..." : "Hifadhi policy"}
+            </button>
+            <button className="admin-sync" onClick={() => void onGenerate()}>
+              Tengeneza sasa
+            </button>
+          </div>
+          <div className="automation-history">
+            <span className="admin-kicker">AUTOMATION HISTORY</span>
+            {logs
+              .filter((row) => String(row.type ?? "").includes("auto-ticket"))
+              .slice(0, 5)
+              .map((row) => (
+                <div key={row.id}>
+                  <b>{row.ok === false ? "FAILED" : "OK"}</b>
+                  <span>{String(row.error ?? fmt(row.createdAt))}</span>
+                </div>
+              ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ReportsSection({ reports, onExport }: { reports: Row[]; onExport: () => void }) {
+  return (
+    <div className="admin-content">
+      <div className="admin-section-heading">
+        <div>
+          <span className="admin-kicker">REPORTING / AUDIT</span>
+          <h2>Ripoti</h2>
+          <p>Ripoti hizi zinatumia records halisi za tickets, users na admin activity.</p>
+        </div>
+        <button className="admin-outline" onClick={onExport}>
+          Pakua CSV
+        </button>
+      </div>
+      <div className="admin-card">
+        <div className="report-grid">
+          <div>
+            <span>Ripoti za jamii</span>
+            <b>{reports.length}</b>
+          </div>
+          <div>
+            <span>Win/Lost records</span>
+            <b>Angalia Overview</b>
+          </div>
+          <div>
+            <span>Admin activity</span>
+            <b>API / Logs</b>
+          </div>
+        </div>
+        <div className="admin-list-card">
+          {reports.length ? (
+            reports.map((row) => (
+              <div className="admin-list-row" key={row.id}>
+                <div className="admin-list-main admin-row-copy">
+                  <b>{String(row.reason ?? row.type ?? "Ripoti")}</b>
+                  <small>{String(row.description ?? row.details ?? "Hakuna maelezo")}</small>
+                  <span>
+                    Reporter: {String(row.reporterId ?? "—")} · {fmt(row.createdAt)}
+                  </span>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="admin-empty compact">
+              <Flag size={22} />
+              <b>Hakuna ripoti zilizopokelewa.</b>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function exportRows(filename: string, rows: Row[]) {
+  const keys = Array.from(new Set(rows.flatMap((row) => Object.keys(row))));
+  const escape = (value: unknown) => `"${String(value ?? "").replaceAll('"', '""')}"`;
+  const csv = [
+    keys.join(","),
+    ...rows.map((row) => keys.map((key) => escape(row[key])).join(",")),
+  ].join("\n");
+  const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 function RowsSection({
   title,
   rows,

@@ -106,6 +106,9 @@ async function syncDate(date: string) {
           ...m,
           markets,
           externalProvider: "api-football",
+          ...(isFinalStatus(m.status) && m.homeScore != null && m.awayScore != null
+            ? { resultSource: "api-football", resultVerifiedAt: FieldValue.serverTimestamp() }
+            : {}),
           updatedAt: FieldValue.serverTimestamp(),
         },
         { merge: true },
@@ -221,6 +224,10 @@ async function settle() {
       const m = matchSnap.data();
       if (!m) continue;
       const matchStatus = String(m.status ?? "").toUpperCase();
+      if (!m.resultSource || !m.resultVerifiedAt) {
+        statuses.push("PENDING");
+        continue;
+      }
       if (isCancelledStatus(matchStatus)) {
         statuses.push("CANCELLED");
         if (s.status !== "CANCELLED")
@@ -255,15 +262,23 @@ async function settle() {
 
 type AutoPickSettings = {
   enabled: boolean;
+  minSelections: number;
   maxSelections: number;
+  minOddsPerSelection: number;
   maxOddsPerSelection: number;
+  minTotalOdds: number;
   maxTotalOdds: number;
   risk: "LOW" | "MEDIUM" | "HIGH";
+  leagueIds?: string[];
+  markets?: string[];
 };
 const defaultAutoPickSettings: AutoPickSettings = {
   enabled: true,
+  minSelections: 2,
   maxSelections: 5,
+  minOddsPerSelection: 1.1,
   maxOddsPerSelection: 1.65,
+  minTotalOdds: 1,
   maxTotalOdds: 12,
   risk: "LOW",
 };
@@ -273,14 +288,20 @@ function isUpcoming(match: any, now = Date.now()) {
 }
 function chooseAutoOption(match: any, settings: AutoPickSettings) {
   const markets = Array.isArray(match.markets) ? match.markets : [];
-  const preferred = settings.risk === "LOW"
-    ? ["DOUBLE_CHANCE", "DRAW_NO_BET", "OVER_UNDER", "BTTS"]
-    : ["DOUBLE_CHANCE", "1X2", "DRAW_NO_BET", "OVER_UNDER", "BTTS"];
+  const preferred = settings.markets?.length
+    ? settings.markets
+    : settings.risk === "LOW"
+      ? ["DOUBLE_CHANCE", "DRAW_NO_BET", "OVER_UNDER", "BTTS"]
+      : ["DOUBLE_CHANCE", "1X2", "DRAW_NO_BET", "OVER_UNDER", "BTTS"];
   for (const marketName of preferred) {
     const market = markets.find((item: any) => item.market === marketName);
     const options = (market?.options ?? [])
       .map((option: any) => ({ ...option, odds: Number(option.odds) }))
-      .filter((option: any) => option.odds > 1 && option.odds <= settings.maxOddsPerSelection)
+      .filter(
+        (option: any) =>
+          option.odds >= settings.minOddsPerSelection &&
+          option.odds <= settings.maxOddsPerSelection,
+      )
       .sort((a: any, b: any) => a.odds - b.odds);
     if (options.length) return { market: marketName, ...options[0] };
   }
@@ -291,38 +312,105 @@ async function runAutoTicket() {
   const settings = { ...defaultAutoPickSettings, ...(configSnap.data() ?? {}) } as AutoPickSettings;
   if (!settings.enabled) return { created: false, reason: "disabled" };
   const matchesSnap = await db.collection("matches").orderBy("kickoffAt", "asc").limit(80).get();
-  const matches: any[] = matchesSnap.docs.map((item) => ({ id: item.id, ...item.data() })).filter(isUpcoming);
+  const matches: any[] = matchesSnap.docs
+    .map((item): any => ({ id: item.id, ...item.data() }))
+    .filter(
+      (match) =>
+        isUpcoming(match) &&
+        (!settings.leagueIds?.length || settings.leagueIds.includes(String(match.leagueId))),
+    );
   const selections: any[] = [];
   for (const match of matches) {
     const option = chooseAutoOption(match, settings);
     if (!option || selections.some((item) => item.matchId === match.id)) continue;
-    selections.push({ matchId: match.id, market: option.market, line: option.line ?? null, prediction: String(option.prediction), odds: option.odds, homeTeam: match.homeTeamName, awayTeam: match.awayTeamName, kickoffAt: match.kickoffAt, leagueName: match.leagueName, status: "PENDING" });
+    selections.push({
+      matchId: match.id,
+      market: option.market,
+      line: option.line ?? null,
+      prediction: String(option.prediction),
+      odds: option.odds,
+      homeTeam: match.homeTeamName,
+      awayTeam: match.awayTeamName,
+      kickoffAt: match.kickoffAt,
+      leagueName: match.leagueName,
+      status: "PENDING",
+    });
     if (selections.length >= Math.max(2, Math.min(10, settings.maxSelections))) break;
   }
   const totalOdds = selections.reduce((total, selection) => total * Number(selection.odds), 1);
-  if (selections.length < 2 || totalOdds > settings.maxTotalOdds) return { created: false, reason: "not-enough-qualifying-selections" };
+  if (
+    selections.length < Math.max(2, settings.minSelections) ||
+    totalOdds < settings.minTotalOdds ||
+    totalOdds > settings.maxTotalOdds
+  )
+    return { created: false, reason: "not-enough-qualifying-selections" };
   const windowKey = new Date().toISOString().slice(0, 13);
-  const duplicate = await db.collection("tickets").where("automationWindow", "==", windowKey).limit(1).get();
-  if (!duplicate.empty) return { created: false, reason: "already-created", ticketId: duplicate.docs[0].id };
+  const duplicate = await db
+    .collection("tickets")
+    .where("automationWindow", "==", windowKey)
+    .limit(1)
+    .get();
+  if (!duplicate.empty)
+    return { created: false, reason: "already-created", ticketId: duplicate.docs[0].id };
   const ticketRef = db.collection("tickets").doc();
   const batch = db.batch();
-  batch.set(ticketRef, { creatorId: "AUTO_BOT", creatorUsername: "wazee_betting_tz", creatorName: "Wazee wa Betting Tz", creatorPhotoURL: null, title: `Mkeka wa Automatic • ${new Date().toLocaleDateString("sw-TZ")}`, description: "Mkeka huu umetengenezwa na mfumo kwa kutumia odds na ratiba kutoka Sports API. Hakuna uhakika wa ushindi; cheza kwa uwajibikaji.", sport: "Football", risk: settings.risk, visibility: "PUBLIC", access: "FREE", totalOdds: Number(totalOdds.toFixed(2)), status: "PENDING", selectionCount: selections.length, automated: true, automationWindow: windowKey, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
-  selections.forEach((selection, index) => batch.set(ticketRef.collection("selections").doc(String(index + 1)), { ...selection, kickoffAt: new Date(selection.kickoffAt), createdAt: FieldValue.serverTimestamp() }));
+  batch.set(ticketRef, {
+    creatorId: "AUTO_BOT",
+    creatorUsername: "wazee_betting_tz",
+    creatorName: "Wazee wa Betting Tz",
+    creatorPhotoURL: null,
+    title: `Mkeka wa Automatic • ${new Date().toLocaleDateString("sw-TZ")}`,
+    description:
+      "Mkeka huu umetengenezwa na mfumo kwa kutumia odds na ratiba kutoka Sports API. Hakuna uhakika wa ushindi; cheza kwa uwajibikaji.",
+    sport: "Football",
+    risk: settings.risk,
+    visibility: "PUBLIC",
+    access: "FREE",
+    totalOdds: Number(totalOdds.toFixed(2)),
+    status: "PENDING",
+    selectionCount: selections.length,
+    automated: true,
+    automationWindow: windowKey,
+    createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+  selections.forEach((selection, index) =>
+    batch.set(ticketRef.collection("selections").doc(String(index + 1)), {
+      ...selection,
+      kickoffAt: new Date(selection.kickoffAt),
+      createdAt: FieldValue.serverTimestamp(),
+    }),
+  );
   await batch.commit();
   return { created: true, ticketId: ticketRef.id, selections: selections.length, totalOdds };
 }
-export const generateAutoTicket = onSchedule({ schedule: "every 30 minutes", timeZone: "Africa/Dar_es_Salaam", region: "europe-west1" }, async () => {
-  try {
-    const result = await runAutoTicket();
-    await db.collection("api_logs").add({ type: "auto-ticket", ok: true, result, createdAt: FieldValue.serverTimestamp() });
-  } catch (e) {
-    console.error("auto ticket failed", e);
-    await db.collection("api_logs").add({ type: "auto-ticket", ok: false, error: String(e), createdAt: FieldValue.serverTimestamp() });
-  }
-});
+export const generateAutoTicket = onSchedule(
+  { schedule: "every 30 minutes", timeZone: "Africa/Dar_es_Salaam", region: "europe-west1" },
+  async () => {
+    try {
+      const result = await runAutoTicket();
+      await db
+        .collection("api_logs")
+        .add({ type: "auto-ticket", ok: true, result, createdAt: FieldValue.serverTimestamp() });
+    } catch (e) {
+      console.error("auto ticket failed", e);
+      await db.collection("api_logs").add({
+        type: "auto-ticket",
+        ok: false,
+        error: String(e),
+        createdAt: FieldValue.serverTimestamp(),
+      });
+    }
+  },
+);
 export const adminGenerateAutoTicket = onCall({ region: "europe-west1" }, async (request) => {
   await assertAdmin(request);
-  try { return await runAutoTicket(); } catch (e) { console.error("manual auto ticket failed", e); throw new HttpsError("internal", "Auto ticket imeshindikana."); }
+  try {
+    return await runAutoTicket();
+  } catch (e) {
+    console.error("manual auto ticket failed", e);
+    throw new HttpsError("internal", "Auto ticket imeshindikana.");
+  }
 });
 export const syncSports = onSchedule(
   { schedule: "every 10 minutes", timeZone: "Africa/Dar_es_Salaam", region: "europe-west1" },
@@ -526,4 +614,152 @@ export const adminSetUserRole = onCall({ region: "europe-west1" }, async (reques
     .doc(uid)
     .set({ role, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
   return { ok: true, role };
+});
+
+export const adminMatchData = onCall({ region: "europe-west1" }, async (request) => {
+  await assertAdmin(request);
+  const [matchesSnap, configSnap, logsSnap] = await Promise.all([
+    db.collection("matches").orderBy("kickoffAt", "asc").limit(200).get(),
+    db.collection("automation").doc("config").get(),
+    db.collection("api_logs").orderBy("createdAt", "desc").limit(50).get(),
+  ]);
+  return {
+    matches: matchesSnap.docs.map((item) => ({ id: item.id, ...item.data() })),
+    autoConfig: { ...defaultAutoPickSettings, ...(configSnap.data() ?? {}) },
+    logs: logsSnap.docs.map((item) => ({ id: item.id, ...item.data() })),
+  };
+});
+
+export const adminSetAutoConfig = onCall({ region: "europe-west1" }, async (request) => {
+  await assertAdmin(request);
+  const raw = request.data ?? {};
+  const config = {
+    enabled: Boolean(raw.enabled),
+    minSelections: Math.max(2, Math.min(10, Number(raw.minSelections ?? 2))),
+    maxSelections: Math.max(2, Math.min(10, Number(raw.maxSelections ?? 5))),
+    minOddsPerSelection: Math.max(1.01, Number(raw.minOddsPerSelection ?? 1.1)),
+    maxOddsPerSelection: Math.max(1.01, Number(raw.maxOddsPerSelection ?? 1.65)),
+    minTotalOdds: Math.max(1, Number(raw.minTotalOdds ?? 1)),
+    maxTotalOdds: Math.max(1, Number(raw.maxTotalOdds ?? 12)),
+    risk: ["LOW", "MEDIUM", "HIGH"].includes(raw.risk) ? raw.risk : "LOW",
+    leagueIds: Array.isArray(raw.leagueIds) ? raw.leagueIds.map(String).slice(0, 50) : [],
+    markets: Array.isArray(raw.markets) ? raw.markets.map(String).slice(0, 10) : [],
+    updatedAt: FieldValue.serverTimestamp(),
+    updatedBy: request.auth!.uid,
+  };
+  if (
+    config.minSelections > config.maxSelections ||
+    config.minOddsPerSelection > config.maxOddsPerSelection ||
+    config.minTotalOdds > config.maxTotalOdds
+  )
+    throw new HttpsError("invalid-argument", "Kiwango cha chini hakiwezi kuzidi cha juu.");
+  await db.collection("automation").doc("config").set(config, { merge: true });
+  await db.collection("api_logs").add({
+    type: "auto-ticket-config",
+    ok: true,
+    by: request.auth!.uid,
+    config,
+    createdAt: FieldValue.serverTimestamp(),
+  });
+  return { ok: true, config };
+});
+
+export const adminCreateTicket = onCall({ region: "europe-west1" }, async (request) => {
+  await assertAdmin(request);
+  const input = request.data ?? {};
+  const selections = Array.isArray(input.selections) ? input.selections : [];
+  if (!String(input.title ?? "").trim() || selections.length < 1)
+    throw new HttpsError("invalid-argument", "Title na selection angalau moja vinahitajika.");
+  const uniqueMatches = new Set<string>();
+  const validated: any[] = [];
+  for (const selection of selections) {
+    const matchId = String(selection.matchId ?? "");
+    if (!matchId || uniqueMatches.has(matchId))
+      throw new HttpsError("invalid-argument", "Tiketi haiwezi kuwa na mechi duplicate.");
+    uniqueMatches.add(matchId);
+    const matchSnap = await db.collection("matches").doc(matchId).get();
+    if (!matchSnap.exists)
+      throw new HttpsError("failed-precondition", "Mechi haipo kwenye Sports API data.");
+    const match = matchSnap.data()!;
+    if (!isUpcoming(match))
+      throw new HttpsError("failed-precondition", "Mechi iliyopita au iliyofutwa hairuhusiwi.");
+    const market = (match.markets ?? []).find(
+      (item: any) => item.market === String(selection.market),
+    );
+    const option = (market?.options ?? []).find(
+      (item: any) =>
+        String(item.prediction) === String(selection.prediction) &&
+        Number(item.odds) === Number(selection.odds),
+    );
+    if (!option)
+      throw new HttpsError("failed-precondition", "Odds hii haijathibitishwa na Sports API.");
+    validated.push({
+      matchId,
+      market: String(selection.market),
+      line: option.line ?? null,
+      prediction: String(option.prediction),
+      odds: Number(option.odds),
+      homeTeam: match.homeTeamName,
+      awayTeam: match.awayTeamName,
+      kickoffAt: match.kickoffAt,
+      leagueName: match.leagueName,
+      status: "PENDING",
+    });
+  }
+  const title = String(input.title).trim();
+  const ticketId = String(input.ticketId ?? "");
+  const ticketRef = ticketId
+    ? db.collection("tickets").doc(ticketId)
+    : db.collection("tickets").doc();
+  const existing = ticketId ? await ticketRef.get() : null;
+  if (ticketId && !existing?.exists) throw new HttpsError("not-found", "Tiketi haipo.");
+  const batch = db.batch();
+  if (existing?.exists) {
+    const oldSelections = await ticketRef.collection("selections").get();
+    oldSelections.docs.forEach((item) => batch.delete(item.ref));
+  }
+  const totalOdds = validated.reduce((total, item) => total * item.odds, 1);
+  batch.set(
+    ticketRef,
+    {
+      ...(existing?.data() ?? {}),
+      creatorId: request.auth!.uid,
+      creatorName: "Admin",
+      title,
+      description: String(input.description ?? ""),
+      sport: "Football",
+      risk: String(input.risk ?? "MEDIUM"),
+      visibility: input.visibility === "PRIVATE" ? "PRIVATE" : "PUBLIC",
+      access: "FREE",
+      totalOdds: Number(totalOdds.toFixed(2)),
+      status: "PENDING",
+      selectionCount: validated.length,
+      automated: false,
+      source: "admin-verified-sports-api",
+      updatedAt: FieldValue.serverTimestamp(),
+      ...(existing?.exists ? {} : { createdAt: FieldValue.serverTimestamp() }),
+    },
+    { merge: true },
+  );
+  validated.forEach((item, index) =>
+    batch.set(ticketRef.collection("selections").doc(String(index + 1)), {
+      ...item,
+      kickoffAt: new Date(item.kickoffAt),
+      createdAt: FieldValue.serverTimestamp(),
+    }),
+  );
+  await batch.commit();
+  await db.collection("api_logs").add({
+    type: ticketId ? "admin-ticket-update" : "admin-ticket-create",
+    ok: true,
+    ticketId: ticketRef.id,
+    by: request.auth!.uid,
+    createdAt: FieldValue.serverTimestamp(),
+  });
+  return {
+    ok: true,
+    ticketId: ticketRef.id,
+    totalOdds: Number(totalOdds.toFixed(2)),
+    selectionCount: validated.length,
+  };
 });
