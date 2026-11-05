@@ -1,0 +1,66 @@
+name: Build Wazee wa Betting TZ Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/build-android-apk.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build-apk:
+    name: Build installable Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Prepare app logo and splash artwork
+        working-directory: mobile
+        run: |
+          python3 -m pip install --quiet pillow
+          mkdir -p resources www
+          base64 -d resources/wazee-logo.jpg.base64 > /tmp/wazee-logo.jpg
+          python3 - <<'PY'
+          from PIL import Image
+          im = Image.open('/tmp/wazee-logo.jpg').convert('RGB')
+          im.resize((1024,1024), Image.Resampling.LANCZOS).save('resources/icon.png', optimize=True)
+          canvas = Image.new('RGB',(2732,2732),(7,11,25))
+          logo = im.resize((1900,1900),Image.Resampling.LANCZOS)
+          canvas.paste(logo,((2732-1900)//2,(2732-1900)//2))
+          canvas.save('resources/splash.png', optimize=True)
+          PY
+          printf '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#070b19"></body></html>' > www/index.html
+      - name: Install Capacitor and Android tooling
+        working-directory: mobile
+        run: npm install
+      - name: Generate Android project and app icons
+        working-directory: mobile
+        run: |
+          npx cap add android
+          npx capacitor-assets generate --android
+          npx cap sync android
+      - name: Build debug APK
+        working-directory: mobile/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: wazee-wa-betting-tz-android-apk
+          path: mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 30
