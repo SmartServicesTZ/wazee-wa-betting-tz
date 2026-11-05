@@ -299,6 +299,74 @@ function chooseOption(match, settings) {
   return null;
 }
 
+async function verifyPublishedTicket(ticketId) {
+  const ticketRef = db.collection("tickets").doc(ticketId);
+  const [ticketSnapshot, selectionsSnapshot] = await Promise.all([
+    ticketRef.get(),
+    ticketRef.collection("selections").get(),
+  ]);
+  if (!ticketSnapshot.exists) {
+    return { verified: false, reason: "ticket-document-not-found", ticketId };
+  }
+  const ticket = ticketSnapshot.data() ?? {};
+  const selections = selectionsSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  const selectionChecks = await Promise.all(
+    selections.map(async (selection) => {
+      const matchSnapshot = await db.collection("matches").doc(String(selection.matchId)).get();
+      const match = matchSnapshot.data() ?? {};
+      const matchingMarket = (match.markets ?? []).find(
+        (market) => market.market === selection.market,
+      );
+      const matchingOption = (matchingMarket?.options ?? []).find(
+        (option) =>
+          String(option.prediction) === String(selection.prediction) &&
+          Number(option.odds) === Number(selection.odds),
+      );
+      return {
+        selectionId: selection.id,
+        matchId: selection.matchId,
+        market: selection.market,
+        prediction: selection.prediction,
+        odds: Number(selection.odds),
+        oddsSource: match.oddsSource ?? null,
+        oddsFresh: hasFreshOdds(match),
+        optionMatchesApiSnapshot: Boolean(matchingOption),
+      };
+    }),
+  );
+  const computedTotalOdds = selections.reduce((total, item) => total * Number(item.odds), 1);
+  const checks = {
+    visibilityPublic: ticket.visibility === "PUBLIC",
+    automated: ticket.automated === true,
+    oddsVerifiedAtPresent: Boolean(ticket.oddsVerifiedAt),
+    automationFingerprintPresent:
+      typeof ticket.automationFingerprint === "string" && ticket.automationFingerprint.length > 0,
+    selectionCountMatches: Number(ticket.selectionCount) === selections.length,
+    selectionsMeetRange: selections.length >= 2 && selections.length <= 5,
+    totalOddsMatches: Number(ticket.totalOdds) === Number(computedTotalOdds.toFixed(2)),
+    allSelectionsHaveFreshApiOdds:
+      selectionChecks.length > 0 &&
+      selectionChecks.every(
+        (item) =>
+          item.oddsFresh && item.oddsSource === "api-football" && item.optionMatchesApiSnapshot,
+      ),
+  };
+  return {
+    verified: Object.values(checks).every(Boolean),
+    ticketId,
+    checks,
+    ticket: {
+      visibility: ticket.visibility,
+      automated: ticket.automated,
+      oddsVerifiedAt: timestampMillis(ticket.oddsVerifiedAt) || null,
+      automationFingerprint: ticket.automationFingerprint ?? null,
+      selectionCount: ticket.selectionCount,
+      totalOdds: ticket.totalOdds,
+    },
+    selections: selectionChecks,
+  };
+}
+
 async function generateTicket() {
   const config = (await db.collection("automation").doc("config").get()).data() ?? {};
   const settings = {
@@ -394,8 +462,15 @@ async function generateTicket() {
     .where("automationFingerprint", "==", fingerprint)
     .limit(1)
     .get();
-  if (!duplicate.empty)
-    return { created: false, reason: "duplicate-fingerprint", ticketId: duplicate.docs[0].id };
+  if (!duplicate.empty) {
+    const ticketId = duplicate.docs[0].id;
+    return {
+      created: false,
+      reason: "duplicate-fingerprint",
+      ticketId,
+      verification: await verifyPublishedTicket(ticketId),
+    };
+  }
   const windowKey = new Date().toISOString().slice(0, 13);
   const sameWindow = await db
     .collection("tickets")
@@ -407,6 +482,7 @@ async function generateTicket() {
       created: false,
       reason: "already-created-this-window",
       ticketId: sameWindow.docs[0].id,
+      verification: await verifyPublishedTicket(sameWindow.docs[0].id),
     };
   const ticket = db.collection("tickets").doc();
   const batch = db.batch();
@@ -443,12 +519,14 @@ async function generateTicket() {
     }),
   );
   await batch.commit();
+  const verification = await verifyPublishedTicket(ticket.id);
   return {
     created: true,
     ticketId: ticket.id,
     selections: selections.length,
     totalOdds: Number(totalOdds.toFixed(2)),
     fingerprint,
+    verification,
   };
 }
 

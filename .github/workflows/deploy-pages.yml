@@ -38,11 +38,13 @@ jobs:
         run: |
           set -euo pipefail
           css_file=$(find .output/public/assets -maxdepth 1 -name 'styles-*.css' -printf '%f\n' | head -1)
+          entry_file=$(find .output/public/assets -maxdepth 1 -name 'index-*.js' -printf '%f\n' | head -1)
           test -n "$css_file"
+          test -n "$entry_file"
           pnpm run dev --host 127.0.0.1 --port 4174 >/tmp/wazee-pages-vite.log 2>&1 &
           vite_pid=$!
           trap 'kill "$vite_pid" 2>/dev/null || true' EXIT
-          CSS_FILE="$css_file" python3 - <<'PY'
+          CSS_FILE="$css_file" ENTRY_FILE="$entry_file" python3 - <<'PY'
           import os, re
           from pathlib import Path
           import subprocess
@@ -50,6 +52,7 @@ jobs:
           base = '/wazee-wa-betting-tz'
           routes = ['', 'login', 'register', 'community', 'matches', 'leaderboard', 'create-ticket', 'dashboard', 'admin']
           css = os.environ['CSS_FILE']
+          entry = os.environ['ENTRY_FILE']
 
           def render(route):
               url = f'http://127.0.0.1:4174{base}/{route}'.rstrip('/') + ('/' if not route else '')
@@ -63,8 +66,8 @@ jobs:
           def prepare(html):
               html = re.sub(r'<link[^>]+(?:/src/styles\.css|/@tanstack-start/styles\.css|/@id/virtual:tanstack-start-dev-client-entry)[^>]*>', '', html)
               html = re.sub(r'<script[^>]+/@id/virtual:tanstack-start-dev-client-entry[^>]*>\s*</script>', '', html)
-              html = html.replace('</head>', f'<base href="{base}/" /><link rel="stylesheet" href="{base}/assets/{css}" /></head>')
-              return re.sub(r'<script[^>]+type="module"[^>]*>\s*</script>', '', html)
+              html = html.replace('</head>', f'<base href="{base}/" /><link rel="stylesheet" href="{base}/assets/{css}" /><script type="module" async src="{base}/assets/{entry}"></script></head>')
+              return html
 
           for route in routes:
               html = prepare(render(route))
