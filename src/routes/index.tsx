@@ -26,7 +26,7 @@ function Home() {
   return <AppShell user={user}>
     <div className="page">
       <section className="hero-card">
-      <div className="hero-copy"><span className="eyebrow"><ShieldCheck size={15}/> COMMUNITY • VERIFIED RESULTS</span><h1>Tips, mikeka na prediction — <em>kwa uwazi.</em></h1><p>Unda mkeka wako, shiriki na jamii, na acha mfumo uthibitishe matokeo kutoka sports API. Hakuna winning ticket inayowekwa bila result halisi.</p><div className="hero-actions"><Link className="btn btn-primary" to="/create-ticket">Tengeneza mkeka</Link><Link className="btn btn-secondary" to="/register">Jiunge na jamii</Link></div></div>
+      <div className="hero-copy"><span className="eyebrow"><ShieldCheck size={15}/> COMMUNITY • VERIFIED RESULTS</span><h1>Tips, mikeka na prediction — <em>kwa uwazi.</em></h1><p>Unda mkeka wako, shiriki na jamii, na acha mfumo uthibitishe matokeo kutoka sports API. Hakuna winning ticket inayowekwa bila result halisi.</p><div className="hero-actions"><Link className="btn btn-primary" to="/create-ticket">Tengeneza mkeka</Link><Link className="btn btn-secondary" to={user ? "/community" : "/register"}>{user ? "Tembelea jamii" : "Jiunge na jamii"}</Link></div></div>
       <div className="hero-stats"><div><Trophy/><b>LIVE</b><span>Settlement engine</span></div><div><Users/><b>COMMUNITY</b><span>Creators & followers</span></div><div><CheckCircle2/><b>REAL DATA</b><span>Sports API only</span></div></div>
       </section>
       <div className="section-toolbar"><div><span className="eyebrow">DISCOVER</span><h2>Community tickets</h2></div><label className="search"><Search size={17}/><input value={query} onChange={(e)=>setQuery(e.target.value)} placeholder="Tafuta ticket, creator..." /></label></div>
