@@ -1,6 +1,11 @@
 name: Deploy Firestore Security Rules
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'firestore.rules'
+      - '.github/workflows/deploy-firestore-rules.yml'
   workflow_dispatch:
 
 permissions:
