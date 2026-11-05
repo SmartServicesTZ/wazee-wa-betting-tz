@@ -108,8 +108,11 @@ function normalizeFixture(raw) {
 }
 
 function isUpcoming(match, now = Date.now()) {
+  const scheduledStatus = ["NS", "TBD"].includes(String(match?.status ?? "").toUpperCase());
   const kickoff = new Date(String(match?.kickoffAt ?? "")).getTime();
-  return Number.isFinite(kickoff) && kickoff > now && kickoff <= now + futureWindowMs;
+  return (
+    scheduledStatus && Number.isFinite(kickoff) && kickoff > now && kickoff <= now + futureWindowMs
+  );
 }
 
 function normalizeOdds(response) {
@@ -178,6 +181,9 @@ async function syncDate(date) {
     oddsRequests: 0,
     oddsCacheHits: 0,
     oddsEmptyResponses: 0,
+    observedOddsBetNames: {},
+    normalizedMarketOptionCounts: {},
+    futureButNotScheduledStatus: 0,
     reason: null,
   };
   let fixtures;
@@ -195,9 +201,14 @@ async function syncDate(date) {
   for (const fixture of normalized.filter(Boolean))
     diagnostics.statusCounts[fixture.status] = (diagnostics.statusCounts[fixture.status] ?? 0) + 1;
   const now = Date.now();
-  const futureFixtures = normalized
-    .filter((match) => match && isUpcoming(match, now))
+  const futureByTime = normalized.filter((match) => {
+    const kickoff = new Date(String(match?.kickoffAt ?? "")).getTime();
+    return match && Number.isFinite(kickoff) && kickoff > now && kickoff <= now + futureWindowMs;
+  });
+  const futureFixtures = futureByTime
+    .filter((match) => isUpcoming(match, now))
     .sort((a, b) => Date.parse(a.kickoffAt) - Date.parse(b.kickoffAt));
+  diagnostics.futureButNotScheduledStatus = futureByTime.length - futureFixtures.length;
   diagnostics.upcomingFixtures = futureFixtures.length;
   diagnostics.rejectedPastOrOutsideWindow =
     diagnostics.validFixtures - diagnostics.upcomingFixtures;
@@ -217,12 +228,31 @@ async function syncDate(date) {
     const existingData = (await ref.get()).data() ?? {};
     if (hasRecentOddsFetch(existingData, now)) {
       diagnostics.oddsCacheHits++;
-      if (hasFreshOdds(existingData, now)) diagnostics.oddsFixturesWithMarkets++;
+      if (hasFreshOdds(existingData, now)) {
+        diagnostics.oddsFixturesWithMarkets++;
+        for (const market of existingData.markets) {
+          diagnostics.normalizedMarketOptionCounts[market.market] =
+            (diagnostics.normalizedMarketOptionCounts[market.market] ?? 0) +
+            (market.options?.length ?? 0);
+        }
+      }
       continue;
     }
     diagnostics.oddsRequests++;
     try {
-      const markets = normalizeOdds(await api("odds", { fixture: match.eventId }));
+      const oddsResponse = await api("odds", { fixture: match.eventId });
+      for (const bookmaker of oddsResponse?.[0]?.bookmakers ?? []) {
+        for (const bet of bookmaker.bets ?? []) {
+          const name = String(bet.name ?? "UNKNOWN");
+          diagnostics.observedOddsBetNames[name] =
+            (diagnostics.observedOddsBetNames[name] ?? 0) + 1;
+        }
+      }
+      const markets = normalizeOdds(oddsResponse);
+      for (const market of markets) {
+        diagnostics.normalizedMarketOptionCounts[market.market] =
+          (diagnostics.normalizedMarketOptionCounts[market.market] ?? 0) + market.options.length;
+      }
       await ref.set(
         {
           markets,
@@ -284,6 +314,25 @@ async function generateTicket() {
   const matches = (await db.collection("matches").orderBy("kickoffAt", "asc").limit(80).get()).docs
     .map((doc) => ({ id: doc.id, ...doc.data() }))
     .filter((match) => isUpcoming(match, now) && hasFreshOdds(match, now));
+  const availableOdds = {
+    freshOddsMatches: matches.length,
+    eligibleOptionsByMarket: {},
+    marketsByName: {},
+  };
+  for (const match of matches) {
+    for (const market of match.markets ?? []) {
+      availableOdds.marketsByName[market.market] =
+        (availableOdds.marketsByName[market.market] ?? 0) + 1;
+      const count = (market.options ?? []).filter((item) => {
+        const odds = Number(item.odds);
+        return odds > 1 && odds <= Number(settings.maxOddsPerSelection);
+      }).length;
+      if (count) {
+        availableOdds.eligibleOptionsByMarket[market.market] =
+          (availableOdds.eligibleOptionsByMarket[market.market] ?? 0) + count;
+      }
+    }
+  }
   const selections = [];
   let runningOdds = 1;
   for (const match of matches) {
@@ -316,6 +365,7 @@ async function generateTicket() {
       created: false,
       reason: "not-enough-qualifying-selections",
       qualifyingSelections: selections.length,
+      ...availableOdds,
     };
   if (totalOdds > Number(settings.maxTotalOdds))
     return {
