@@ -470,3 +470,7 @@ body{
 .ticket-side>.btn-primary{margin-top:5px}
 @media(max-width:900px){.ticket-builder-page .builder-grid{grid-template-columns:1fr}.ticket-side{position:static}.match-builder{max-height:none}}
 @media(max-width:600px){.ticket-builder-page .page-title{gap:14px}.ticket-builder-page .page-title h1{font-size:31px}.ticket-builder-page .page-title{flex-direction:row;align-items:center}.ticket-builder-page .odds-box{min-width:100px;padding:9px}.ticket-builder-page .odds-box b{font-size:23px}.match-filters{grid-template-columns:1fr 1fr}.match-filters .search{grid-column:1/-1}.match-head b{font-size:12px}.match-builder-card{padding:12px}.market>div{grid-template-columns:repeat(2,minmax(0,1fr))}.ticket-side{padding:15px}}
+
+
+/* App refresh + published ticket image tools */
+.app-refresh{display:inline-flex;align-items:center;gap:6px;border:1px solid #59648c;border-radius:9px;background:#ffffff09;color:var(--ink);padding:8px 10px;font-size:10px;font-weight:850;cursor:pointer;white-space:nowrap}.app-refresh:hover{border-color:var(--accent);color:var(--accent)}.ticket-published-image{margin:18px 0;padding:15px;border:1px solid var(--line);border-radius:16px;background:#ffffff05}.ticket-published-image .ticket-image-actions{max-width:420px}.published-ticket-image{display:block;width:min(100%,520px);height:auto;margin:14px auto 0;border:1px solid var(--line);border-radius:12px;box-shadow:0 14px 35px #0005}@media(max-width:600px){.app-refresh{padding:8px}.app-refresh span{display:none}.top-user{gap:8px}}
