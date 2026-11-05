@@ -12,7 +12,20 @@ export async function createTicket(input:{uid:string;username:string;displayName
 export async function listPublicTickets(max=20){const snap=await getDocs(query(collection(firestore,"tickets"),where("visibility","==","PUBLIC"),limit(max)));return Promise.all(snap.docs.map(async item=>{const data=item.data();const profile=await getDoc(doc(firestore,"publicProfiles",String(data.creatorId))).catch(()=>null);const p=profile?.exists()?profile.data():{};return{id:item.id,...data,creatorAccountVerified:p?.accountVerified===true,creatorWinRate:Number(p?.winRate??0),creatorSettledTicketCount:Number(p?.settledTicketCount??0)} as PublicTicket;}));}
 export async function listMatches(max=30){const snap=await getDocs(query(collection(firestore,"matches"),orderBy("kickoffAt","asc"),limit(max)));return snap.docs.map(item=>({id:item.id,...item.data()}));}
 export async function getTicket(ticketId:string){const ticket=await getDoc(doc(firestore,"tickets",ticketId));if(!ticket.exists())return null;const data=ticket.data();const [selections,profile]=await Promise.all([getDocs(query(collection(firestore,"tickets",ticketId,"selections"),orderBy("createdAt","asc"))),getDoc(doc(firestore,"publicProfiles",String(data.creatorId))).catch(()=>null)]);const p=profile?.exists()?profile.data():{};return{id:ticket.id,...data,creatorAccountVerified:p?.accountVerified===true,creatorWinRate:Number(p?.winRate??0),creatorSettledTicketCount:Number(p?.settledTicketCount??0),selections:selections.docs.map(item=>({id:item.id,...item.data()}))};}
-export async function getUserProfile(uid:string){const snap=await getDoc(doc(firestore,"users",uid));return snap.exists()?{id:snap.id,...snap.data()}:null;}
+export async function getUserProfile(uid:string){
+ const snap=await getDoc(doc(firestore,"users",uid));
+ if(!snap.exists())return null;
+ const user={id:snap.id,...snap.data()} as any;
+ const publicRef=doc(firestore,"publicProfiles",uid);
+ const publicSnap=await getDoc(publicRef);
+ const publicData={uid,username:user.username??("mzee_"+String(user.phone??"").slice(-9)),displayName:user.displayName??[user.firstName,user.lastName].filter(Boolean).join(" "),photoURL:user.photoURL??null,accountVerified:true};
+ if(!publicSnap.exists()){
+  await setDoc(publicRef,{...publicData,ticketCount:Number(user.ticketCount??0),settledTicketCount:Number((user.wonCount??0)+(user.lostCount??0)),wonCount:Number(user.wonCount??0),lostCount:Number(user.lostCount??0),pendingCount:Number(user.pendingCount??0),winRate:Number(user.winRate??0),selectionWonCount:0,selectionLostCount:0,selectionWinRate:0,createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
+ }else if(publicSnap.data().accountVerified!==true||!publicSnap.data().username||!publicSnap.data().displayName){
+  await setDoc(publicRef,{...publicData,updatedAt:serverTimestamp()},{merge:true});
+ }
+ return user;
+}
 export async function toggleLike(ticketId:string,uid:string){const ref=doc(firestore,"likes",ticketId+"_"+uid);const snap=await getDoc(ref);if(snap.exists()){await deleteDoc(ref);return false;}await setDoc(ref,{ticketId,userId:uid,createdAt:serverTimestamp()});return true;}
 export async function toggleSave(ticketId:string,uid:string){const ref=doc(firestore,"savedTickets",ticketId+"_"+uid);const snap=await getDoc(ref);if(snap.exists()){await deleteDoc(ref);return false;}await setDoc(ref,{ticketId,userId:uid,createdAt:serverTimestamp()});return true;}
 export async function addComment(ticketId:string,authorId:string,authorName:string,text:string){if(!text.trim())throw new Error("Andika comment kwanza.");return addDoc(collection(firestore,"comments"),{ticketId,authorId,authorName,text:text.trim(),createdAt:serverTimestamp()});}
