@@ -73,20 +73,41 @@ export async function registerWithPhone(
   const email = phoneLoginEmail(phone);
   const auth = getFirebaseAuth();
   if (!auth) throw new Error("Firebase Auth inapatikana kwenye browser pekee.");
-  const result = await createUserWithEmailAndPassword(auth, email, password);
+  let accountUser: User;
+  let isNewAccount = true;
+  try {
+    accountUser = (await createUserWithEmailAndPassword(auth, email, password)).user;
+  } catch (error) {
+    const code = typeof error === "object" && error && "code" in error ? String(error.code) : "";
+    if (!code.includes("email-already-in-use")) {
+      throw new Error(authErrorMessage(error, "Usajili umeshindikana. Jaribu tena."));
+    }
+    // Recover an Auth account left behind by an earlier failed profile creation.
+    try {
+      accountUser = (await signInWithEmailAndPassword(auth, email, password)).user;
+    } catch {
+      throw new Error("Namba hii tayari ina akaunti. Ingia kwa password yako au wasiliana na msaada WhatsApp.");
+    }
+    const existingProfile = await getDoc(doc(firestore, "users", accountUser.uid));
+    if (existingProfile.exists()) {
+      await signOut(auth);
+      throw new Error("Namba hii tayari ina akaunti. Tafadhali ingia.");
+    }
+    isNewAccount = false;
+  }
   const displayName = (firstName + " " + lastName).trim();
   const username = "mzee_" + phone.slice(-9);
   try {
     // Set the display name before creating the profile, so no later profile update
     // can make a successful registration look like a failed one.
-    await updateProfile(result.user, { displayName });
+    await updateProfile(accountUser, { displayName });
     await runTransaction(firestore, async (tx) => {
       const usernameRef = doc(firestore, "usernames", username);
       const existingUsername = await tx.get(usernameRef);
       if (existingUsername.exists()) throw new Error("Namba hii tayari imetumika. Wasiliana na msaada WhatsApp.");
-      tx.set(usernameRef, { uid: result.user.uid, createdAt: serverTimestamp() });
-      tx.set(doc(firestore, "users", result.user.uid), {
-        uid: result.user.uid,
+      tx.set(usernameRef, { uid: accountUser.uid, createdAt: serverTimestamp() });
+      tx.set(doc(firestore, "users", accountUser.uid), {
+        uid: accountUser.uid,
         email: result.user.email,
         firstName,
         lastName,
@@ -105,7 +126,7 @@ export async function registerWithPhone(
         updatedAt: serverTimestamp(),
       });
     });
-    return result.user;
+    return accountUser;
   } catch (error) {
     // A failed Firestore profile write must not leave an Auth-only account behind.
     try {
