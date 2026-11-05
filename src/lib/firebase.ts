@@ -122,6 +122,24 @@ export async function registerWithPhone(
       if (existingUsername.exists())
         throw new Error("Namba hii tayari imetumika. Wasiliana na msaada WhatsApp.");
       tx.set(usernameRef, { uid: accountUser.uid, createdAt: serverTimestamp() });
+      tx.set(doc(firestore, "publicProfiles", accountUser.uid), {
+        uid: accountUser.uid,
+        username,
+        displayName,
+        photoURL: null,
+        accountVerified: true,
+        ticketCount: 0,
+        settledTicketCount: 0,
+        wonCount: 0,
+        lostCount: 0,
+        pendingCount: 0,
+        winRate: 0,
+        selectionWonCount: 0,
+        selectionLostCount: 0,
+        selectionWinRate: 0,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
       tx.set(doc(firestore, "users", accountUser.uid), {
         uid: accountUser.uid,
         email: accountUser.email,
