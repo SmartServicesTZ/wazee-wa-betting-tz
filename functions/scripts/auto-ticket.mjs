@@ -11,7 +11,7 @@ const db = getFirestore(app);
 const apiBase = (process.env.SPORTS_API_BASE_URL ?? "https://v3.football.api-sports.io").replace(/\/$/, "");
 const apiKey = process.env.SPORTS_API_KEY;
 const oddsCacheMs = 6 * 60 * 60 * 1000;
-const futureWindowMs = 72 * 60 * 60 * 1000;
+const futureWindowMs = 48 * 60 * 60 * 1000;
 const maxOddsFixtures = Math.max(1, Math.min(3, Number(process.env.MAX_ODDS_FIXTURES ?? 3)));
 const maxApiRetries = 2;
 
@@ -155,18 +155,18 @@ async function generateTicket() {
 
 async function main() {
   const today = new Date();
-  const dates = [0, 1, 2].map((offset) => { const date = new Date(today); date.setUTCDate(date.getUTCDate() + offset); return date.toISOString().slice(0, 10); });
+  const dates = [0, 1].map((offset) => { const date = new Date(today); date.setUTCDate(date.getUTCDate() + offset); return date.toISOString().slice(0, 10); });
   const syncResults = [];
   for (const date of dates) syncResults.push({ date, ...(await syncDate(date)) });
   const result = await generateTicket();
-  await writeLog({ type: "github-auto-ticket", ok: true, syncResults, result, quotaPolicy: { maxOddsFixtures, oddsCacheHours: 6, futureWindowHours: 72, maxApiRetries } });
+  await writeLog({ type: "github-auto-ticket", ok: true, syncResults, result, quotaPolicy: { maxOddsFixtures, oddsCacheHours: 6, futureWindowHours: 48, maxApiRetries } });
   console.log(JSON.stringify({ syncResults, result }));
 }
 
 try {
   await main();
 } catch (error) {
-  await writeLog({ type: "github-auto-ticket", ok: false, error: String(error), quotaPolicy: { maxOddsFixtures, oddsCacheHours: 6, futureWindowHours: 72, maxApiRetries } });
+  await writeLog({ type: "github-auto-ticket", ok: false, error: String(error), quotaPolicy: { maxOddsFixtures, oddsCacheHours: 6, futureWindowHours: 48, maxApiRetries } });
   console.error(error);
   process.exitCode = 1;
 }
