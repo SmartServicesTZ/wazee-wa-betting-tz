@@ -15,7 +15,7 @@ service cloud.firestore {
     &&request.resource.data.selectionWinRate==0
     &&request.resource.data.keys().hasOnly(['uid','username','displayName','photoURL','accountVerified','ticketCount','settledTicketCount','wonCount','lostCount','pendingCount','winRate','selectionWonCount','selectionLostCount','selectionWinRate','createdAt','updatedAt']);
    allow update:if isOwner(uid)&&request.resource.data.uid==resource.data.uid
-    &&request.resource.data.accountVerified==resource.data.accountVerified
+    &&(request.resource.data.accountVerified==resource.data.accountVerified||(!resource.data.keys().hasAny(['accountVerified'])&&request.resource.data.accountVerified==true))
     &&request.resource.data.winRate==resource.data.winRate
     &&request.resource.data.wonCount==resource.data.wonCount
     &&request.resource.data.lostCount==resource.data.lostCount
