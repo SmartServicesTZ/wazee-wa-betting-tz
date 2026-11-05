@@ -10,6 +10,8 @@ import {
   EyeOff,
   Flag,
   LayoutDashboard,
+  Megaphone,
+  Settings2,
   Lock,
   LogOut,
   Menu,
@@ -25,21 +27,16 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { User } from "firebase/auth";
-import {
-  collection,
-  deleteDoc,
-  doc,
-  getDocs,
-  limit,
-  orderBy,
-  query,
-  updateDoc,
-  where,
-} from "firebase/firestore";
+import { collection, doc, getDocs, limit, orderBy, query, where } from "firebase/firestore";
 import { toast } from "sonner";
 import { AppShell } from "../components/app-shell";
 import {
   adminDashboard,
+  adminAuditEvent,
+  adminDeleteTicket,
+  adminUpdateTicket,
+  adminGetSiteSettings,
+  adminSaveSiteSettings,
   adminCreateTicket,
   adminGenerateAutoTicket,
   adminMatchData,
@@ -54,20 +51,36 @@ import {
   type AdminMatch,
   type AutoConfig,
   type AdminUser,
+  type AdminSiteSettings,
 } from "../lib/firebase";
 import { getUserProfile } from "../lib/firestore";
 
 export const Route = createFileRoute("/admin")({ component: Admin });
-type Section = "overview" | "users" | "tickets" | "matches" | "reports" | "payments" | "logs";
+type Section =
+  | "overview"
+  | "users"
+  | "tickets"
+  | "automatic"
+  | "matches"
+  | "results"
+  | "reports"
+  | "payments"
+  | "ads"
+  | "logs"
+  | "settings";
 type Row = { id: string; [key: string]: unknown };
 const sections: { id: Section; label: string; icon: typeof Activity }[] = [
   { id: "overview", label: "Muhtasari", icon: LayoutDashboard },
   { id: "users", label: "Watumiaji", icon: Users },
   { id: "tickets", label: "Tiketi", icon: Ticket },
-  { id: "matches", label: "Mechi / Odds", icon: CalendarDays },
+  { id: "automatic", label: "Automatic Tickets", icon: Activity },
+  { id: "matches", label: "Mechi", icon: CalendarDays },
+  { id: "results", label: "Matokeo", icon: Trophy },
   { id: "reports", label: "Ripoti", icon: Flag },
   { id: "payments", label: "Malipo", icon: CreditCard },
+  { id: "ads", label: "Matangazo", icon: Megaphone },
   { id: "logs", label: "API / Logs", icon: Activity },
+  { id: "settings", label: "Settings", icon: Settings2 },
 ];
 const fmt = (value: unknown) => {
   if (!value) return "—";
@@ -89,6 +102,7 @@ function Admin() {
   const [matches, setMatches] = useState<AdminMatch[]>([]);
   const [autoConfig, setAutoConfig] = useState<AutoConfig | null>(null);
   const [autoLogs, setAutoLogs] = useState<Row[]>([]);
+  const [settings, setSettings] = useState<AdminSiteSettings | null>(null);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -123,19 +137,48 @@ function Admin() {
     if (!isAdmin) return;
     setLoading(true);
     try {
-      const [summary, ticketSnap, reportSnap, paymentSnap, logSnap, matchData] = await Promise.all([
+      const [
+        summary,
+        ticketSnap,
+        reportSnap,
+        paymentSnap,
+        logSnap,
+        activitySnap,
+        matchData,
+        siteSettings,
+      ] = await Promise.all([
         adminDashboard(),
         getDocs(query(collection(firestore, "tickets"), orderBy("createdAt", "desc"), limit(100))),
         getDocs(query(collection(firestore, "reports"), orderBy("createdAt", "desc"), limit(100))),
         getDocs(query(collection(firestore, "payments"), orderBy("createdAt", "desc"), limit(100))),
         getDocs(query(collection(firestore, "api_logs"), orderBy("createdAt", "desc"), limit(30))),
+        getDocs(
+          query(
+            collection(firestore, "adminActivityLogs"),
+            orderBy("createdAt", "desc"),
+            limit(30),
+          ),
+        ),
         adminMatchData(),
+        adminGetSiteSettings(),
       ]);
       setData(summary);
       setTickets(ticketSnap.docs.map((item) => ({ id: item.id, ...item.data() })));
       setReports(reportSnap.docs.map((item) => ({ id: item.id, ...item.data() })));
       setPayments(paymentSnap.docs.map((item) => ({ id: item.id, ...item.data() })));
-      setLogs(logSnap.docs.map((item) => ({ id: item.id, ...item.data() })));
+      const logRows: Row[] = [
+        ...activitySnap.docs.map(
+          (item) => ({ id: item.id, ...item.data(), type: "admin-activity" }) as Row,
+        ),
+        ...logSnap.docs.map((item) => ({ id: item.id, ...item.data() }) as Row),
+      ];
+      const millis = (value: unknown) => {
+        if (value && typeof value === "object" && "toDate" in value)
+          return (value as { toDate: () => Date }).toDate().getTime();
+        return Date.parse(String(value ?? "")) || 0;
+      };
+      setLogs(logRows.sort((a, b) => millis(b["createdAt"]) - millis(a["createdAt"])).slice(0, 50));
+      setSettings(siteSettings);
       setMatches(matchData.matches);
       setAutoConfig(matchData.autoConfig);
       setAutoLogs(matchData.logs);
@@ -245,10 +288,22 @@ function Admin() {
       setBusy(false);
     }
   };
+  const saveSettings = async (next: AdminSiteSettings) => {
+    setBusy(true);
+    try {
+      const result = await adminSaveSiteSettings(next);
+      setSettings(result.settings);
+      toast.success("Mipangilio imehifadhiwa.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Imeshindikana kuhifadhi mipangilio.");
+    } finally {
+      setBusy(false);
+    }
+  };
   const toggleTicket = async (ticket: Row) => {
     const visibility = ticket.visibility === "PUBLIC" ? "PRIVATE" : "PUBLIC";
     try {
-      await updateDoc(doc(firestore, "tickets", ticket.id), { visibility, updatedAt: new Date() });
+      await adminUpdateTicket(ticket.id, "visibility", { visibility });
       setTickets((items) =>
         items.map((item) => (item.id === ticket.id ? { ...item, visibility } : item)),
       );
@@ -260,7 +315,7 @@ function Admin() {
   const removeTicket = async (ticket: Row) => {
     if (!window.confirm("Una uhakika unataka kufuta tiketi hii?")) return;
     try {
-      await deleteDoc(doc(firestore, "tickets", ticket.id));
+      await adminDeleteTicket(ticket.id);
       setTickets((items) => items.filter((item) => item.id !== ticket.id));
       toast.success("Tiketi imefutwa.");
     } catch (error) {
@@ -271,10 +326,7 @@ function Admin() {
     const title = window.prompt("Jina jipya la tiketi", String(ticket.title ?? ""));
     if (!title?.trim()) return;
     try {
-      await updateDoc(doc(firestore, "tickets", ticket.id), {
-        title: title.trim(),
-        updatedAt: new Date(),
-      });
+      await adminUpdateTicket(ticket.id, "title", { title: title.trim() });
       setTickets((items) =>
         items.map((item) => (item.id === ticket.id ? { ...item, title: title.trim() } : item)),
       );
@@ -325,9 +377,6 @@ function Admin() {
             })}
           </nav>
           <div className="admin-sidebar-foot">
-            <Link to="/">
-              <ChevronRight size={15} /> Tazama website
-            </Link>
             <button onClick={() => void logout()}>
               <LogOut size={15} /> Toka
             </button>
@@ -389,8 +438,9 @@ function Admin() {
               onCreated={load}
             />
           )}
-          {section === "matches" && autoConfig && (
+          {section === "automatic" && autoConfig && (
             <MatchesSection
+              mode="automatic"
               matches={matches}
               config={autoConfig}
               logs={autoLogs}
@@ -423,8 +473,42 @@ function Admin() {
               }}
             />
           )}
+          {section === "matches" && autoConfig && (
+            <MatchesSection
+              mode="matches"
+              matches={matches}
+              config={autoConfig}
+              logs={autoLogs}
+              onConfig={async (next) => {
+                try {
+                  const result = await adminSetAutoConfig(next);
+                  setAutoConfig(result.config);
+                  toast.success("Mipangilio imehifadhiwa.");
+                } catch (error) {
+                  toast.error(
+                    error instanceof Error ? error.message : "Imeshindikana kuhifadhi config.",
+                  );
+                }
+              }}
+              onGenerate={async () => {
+                toast.info("Automatic ticket inapatikana kwenye menyu yake.");
+              }}
+            />
+          )}
+          {section === "results" && <ResultsSection matches={matches} />}
+          {section === "ads" && settings && <AdsSection value={settings} onSave={saveSettings} />}
+          {section === "settings" && settings && (
+            <SettingsSection value={settings} onSave={saveSettings} />
+          )}
           {section === "reports" && (
-            <ReportsSection reports={reports} onExport={() => exportRows("reports.csv", reports)} />
+            <ReportsSection
+              reports={reports}
+              onExport={() => {
+                void adminAuditEvent("report.exported")
+                  .then(() => exportRows("reports.csv", reports))
+                  .catch(() => toast.error("Imeshindikana kurekodi export."));
+              }}
+            />
           )}
           {section === "payments" && (
             <RowsSection
@@ -439,7 +523,7 @@ function Admin() {
                     {String(row.currency ?? "TZS")}
                   </small>
                   <span>
-                    {String(row.userId ?? "Mtumiaji hajatajwa")} · {fmt(row.createdAt)}
+                    {String(row.userId ?? "Mtumiaji hajatajwa")} · {fmt(row["createdAt"])}
                   </span>
                 </>
               )}
@@ -452,11 +536,20 @@ function Admin() {
               empty="Hakuna logs zilizopatikana."
               render={(row) => (
                 <>
-                  <b>{String(row.type ?? "Tukio")}</b>
-                  <small className={row.ok === false ? "danger-text" : "success-text"}>
-                    {row.ok === false ? "FAILED" : "OK"}
+                  <b>{String(row["action"] ?? row["type"] ?? "Tukio")}</b>
+                  <small className={row["ok"] === false ? "danger-text" : "success-text"}>
+                    {row["action"]
+                      ? `Actor: ${String(row["actorUid"] ?? "—")}`
+                      : row["ok"] === false
+                        ? "FAILED"
+                        : "OK"}
                   </small>
-                  <span>{String(row.error ?? fmt(row.createdAt))}</span>
+                  <span>
+                    {String(
+                      row["error"] ??
+                        (row["details"] ? JSON.stringify(row["details"]) : fmt(row["createdAt"])),
+                    )}
+                  </span>
                 </>
               )}
             />
@@ -886,12 +979,14 @@ function TicketsSection({
   );
 }
 function MatchesSection({
+  mode,
   matches,
   config,
   logs,
   onConfig,
   onGenerate,
 }: {
+  mode: "matches" | "automatic";
   matches: AdminMatch[];
   config: AutoConfig;
   logs: Row[];
@@ -914,7 +1009,7 @@ function MatchesSection({
       <div className="admin-section-heading">
         <div>
           <span className="admin-kicker">SPORTS API / VERIFIED RESULTS</span>
-          <h2>Mechi na Automatic Tickets</h2>
+          <h2>{mode === "matches" ? "Mechi" : "Automatic Tickets"}</h2>
           <p>
             Mechi, odds na matokeo hapa hutoka Sports API pekee. Matokeo yasiyo na source hayasettle
             tickets.
@@ -923,162 +1018,429 @@ function MatchesSection({
         <span className="admin-count">{matches.length} matches</span>
       </div>
       <div className="admin-columns">
-        <div className="admin-card">
-          <div className="admin-card-head">
-            <div>
-              <span className="admin-kicker">FIXTURES</span>
-              <h3>Mechi zilizohifadhiwa</h3>
+        {mode === "matches" && (
+          <div className="admin-card">
+            <div className="admin-card-head">
+              <div>
+                <span className="admin-kicker">FIXTURES</span>
+                <h3>Mechi zilizohifadhiwa</h3>
+              </div>
+              <CalendarDays size={20} />
             </div>
-            <CalendarDays size={20} />
-          </div>
-          <div className="admin-list-card">
-            {matches.length ? (
-              matches.slice(0, 80).map((match) => (
-                <div className="admin-list-row" key={match.id}>
-                  <div className="admin-avatar small">
-                    <Trophy size={15} />
-                  </div>
-                  <div className="admin-list-main">
-                    <div>
-                      <b>
-                        {match.homeTeamName} v {match.awayTeamName}
-                      </b>
-                      <span
-                        className={`status ${match.resultSource ? "status-won" : "status-pending"}`}
-                      >
-                        {match.status ?? "—"}
+            <div className="admin-list-card">
+              {matches.length ? (
+                matches.slice(0, 80).map((match) => (
+                  <div className="admin-list-row" key={match.id}>
+                    <div className="admin-avatar small">
+                      <Trophy size={15} />
+                    </div>
+                    <div className="admin-list-main">
+                      <div>
+                        <b>
+                          {match.homeTeamName} v {match.awayTeamName}
+                        </b>
+                        <span
+                          className={`status ${match.resultSource ? "status-won" : "status-pending"}`}
+                        >
+                          {match.status ?? "—"}
+                        </span>
+                      </div>
+                      <small>
+                        {match.leagueName ?? "—"} ·{" "}
+                        {match.kickoffAt ? new Date(match.kickoffAt).toLocaleString("sw-TZ") : "—"}
+                      </small>
+                      <span>
+                        {match.homeScore ?? "—"} - {match.awayScore ?? "—"} ·{" "}
+                        {match.markets?.length ?? 0} markets ·{" "}
+                        {match.resultSource
+                          ? `Source: ${match.resultSource}`
+                          : "Result haijathibitishwa"}
                       </span>
                     </div>
-                    <small>
-                      {match.leagueName ?? "—"} ·{" "}
-                      {match.kickoffAt ? new Date(match.kickoffAt).toLocaleString("sw-TZ") : "—"}
-                    </small>
+                  </div>
+                ))
+              ) : (
+                <div className="admin-empty compact">
+                  <CalendarDays size={22} />
+                  <b>Hakuna mechi kutoka Sports API.</b>
+                  <span>
+                    Fanya Sync data; ikiwa API imefika limit, error itaonekana kwenye Logs.
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+        {mode === "automatic" && (
+          <div className="admin-card">
+            <div className="admin-card-head">
+              <div>
+                <span className="admin-kicker">AUTOMATION POLICY</span>
+                <h3>Automatic Tickets</h3>
+              </div>
+              <Activity size={20} />
+            </div>
+            <label className="toggle-line">
+              <input
+                type="checkbox"
+                checked={draft.enabled}
+                onChange={(event) => setDraft({ ...draft, enabled: event.target.checked })}
+              />{" "}
+              Iwezeshwe
+            </label>
+            <div className="composer-grid">
+              <label>
+                Min mechi
+                <input
+                  type="number"
+                  min="2"
+                  max="10"
+                  value={draft.minSelections}
+                  onChange={(event) =>
+                    setDraft({ ...draft, minSelections: Number(event.target.value) })
+                  }
+                />
+              </label>
+              <label>
+                Max mechi
+                <input
+                  type="number"
+                  min="2"
+                  max="10"
+                  value={draft.maxSelections}
+                  onChange={(event) =>
+                    setDraft({ ...draft, maxSelections: Number(event.target.value) })
+                  }
+                />
+              </label>
+              <label>
+                Min odds/selection
+                <input
+                  type="number"
+                  step="0.01"
+                  value={draft.minOddsPerSelection}
+                  onChange={(event) =>
+                    setDraft({ ...draft, minOddsPerSelection: Number(event.target.value) })
+                  }
+                />
+              </label>
+              <label>
+                Max odds/selection
+                <input
+                  type="number"
+                  step="0.01"
+                  value={draft.maxOddsPerSelection}
+                  onChange={(event) =>
+                    setDraft({ ...draft, maxOddsPerSelection: Number(event.target.value) })
+                  }
+                />
+              </label>
+              <label>
+                Min total odds
+                <input
+                  type="number"
+                  step="0.01"
+                  value={draft.minTotalOdds}
+                  onChange={(event) =>
+                    setDraft({ ...draft, minTotalOdds: Number(event.target.value) })
+                  }
+                />
+              </label>
+              <label>
+                Max total odds
+                <input
+                  type="number"
+                  step="0.01"
+                  value={draft.maxTotalOdds}
+                  onChange={(event) =>
+                    setDraft({ ...draft, maxTotalOdds: Number(event.target.value) })
+                  }
+                />
+              </label>
+            </div>
+            <div className="admin-row-actions">
+              <button className="admin-outline" disabled={saving} onClick={() => void save()}>
+                {saving ? "Inahifadhi..." : "Hifadhi policy"}
+              </button>
+              <button className="admin-sync" onClick={() => void onGenerate()}>
+                Tengeneza sasa
+              </button>
+            </div>
+            <div className="automation-history">
+              <span className="admin-kicker">AUTOMATION HISTORY</span>
+              {logs
+                .filter((row) => String(row["type"] ?? "").includes("auto-ticket"))
+                .slice(0, 5)
+                .map((row) => (
+                  <div key={row.id}>
+                    <b>
+                      {row["action"]
+                        ? `Actor: ${String(row["actorUid"] ?? "—")}`
+                        : row["ok"] === false
+                          ? "FAILED"
+                          : "OK"}
+                    </b>
                     <span>
-                      {match.homeScore ?? "—"} - {match.awayScore ?? "—"} ·{" "}
-                      {match.markets?.length ?? 0} markets ·{" "}
-                      {match.resultSource
-                        ? `Source: ${match.resultSource}`
-                        : "Result haijathibitishwa"}
+                      {String(
+                        row["error"] ??
+                          (row["details"] ? JSON.stringify(row["details"]) : fmt(row["createdAt"])),
+                      )}
                     </span>
                   </div>
-                </div>
-              ))
-            ) : (
-              <div className="admin-empty compact">
-                <CalendarDays size={22} />
-                <b>Hakuna mechi kutoka Sports API.</b>
-                <span>Fanya Sync data; ikiwa API imefika limit, error itaonekana kwenye Logs.</span>
-              </div>
-            )}
-          </div>
-        </div>
-        <div className="admin-card">
-          <div className="admin-card-head">
-            <div>
-              <span className="admin-kicker">AUTOMATION POLICY</span>
-              <h3>Automatic Tickets</h3>
+                ))}
             </div>
-            <Activity size={20} />
           </div>
-          <label className="toggle-line">
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ResultsSection({ matches }: { matches: AdminMatch[] }) {
+  const final = matches.filter(
+    (match) => match.homeScore != null || match.awayScore != null || match.resultSource,
+  );
+  return (
+    <div className="admin-content">
+      <div className="admin-section-heading">
+        <div>
+          <span className="admin-kicker">VERIFIED RESULTS</span>
+          <h2>Matokeo ya mechi</h2>
+          <p>Matokeo yanaonyeshwa pamoja na chanzo cha uthibitisho.</p>
+        </div>
+        <span className="admin-count">{final.length} matokeo</span>
+      </div>
+      <div className="admin-card admin-list-card">
+        {final.length ? (
+          final.map((match) => (
+            <div className="admin-list-row" key={match.id}>
+              <div className="admin-list-main">
+                <b>
+                  {match.homeTeamName} {match.homeScore ?? "—"} – {match.awayScore ?? "—"}{" "}
+                  {match.awayTeamName}
+                </b>
+                <small>
+                  {match.leagueName ?? "—"} · {match.status ?? "—"}
+                </small>
+                <span>
+                  {match.resultSource
+                    ? "Imethibitishwa: " + match.resultSource
+                    : "Haijathibitishwa na source"}{" "}
+                  · {fmt(match.resultVerifiedAt)}
+                </span>
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="admin-empty">
+            <Trophy size={24} />
+            <b>Hakuna matokeo yaliyohifadhiwa.</b>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+function SettingsSection({
+  value,
+  onSave,
+}: {
+  value: AdminSiteSettings;
+  onSave: (value: AdminSiteSettings) => Promise<void>;
+}) {
+  const [draft, setDraft] = useState(value);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => setDraft(value), [value]);
+  const save = async () => {
+    setSaving(true);
+    try {
+      await onSave(draft);
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <div className="admin-content">
+      <div className="admin-section-heading">
+        <div>
+          <span className="admin-kicker">SITE CONFIGURATION</span>
+          <h2>Settings</h2>
+          <p>Thamani za umma huhifadhiwa tofauti na credentials za siri.</p>
+        </div>
+      </div>
+      <div className="admin-card settings-card">
+        <div className="composer-grid">
+          <label>
+            Jina la website
+            <input
+              maxLength={80}
+              value={draft.siteName}
+              onChange={(e) => setDraft({ ...draft, siteName: e.target.value })}
+            />
+          </label>
+          <label>
+            Logo URL (HTTPS)
+            <input
+              value={draft.logoUrl}
+              onChange={(e) => setDraft({ ...draft, logoUrl: e.target.value })}
+              placeholder="https://..."
+            />
+          </label>
+          <label>
+            WhatsApp ya msaada
+            <input
+              value={draft.supportWhatsApp}
+              onChange={(e) => setDraft({ ...draft, supportWhatsApp: e.target.value })}
+            />
+          </label>
+          <label>
+            Sports API base URL
+            <input
+              value={draft.sportsApi.baseUrl}
+              onChange={(e) =>
+                setDraft({ ...draft, sportsApi: { ...draft.sportsApi, baseUrl: e.target.value } })
+              }
+            />
+          </label>
+        </div>
+        <div className="admin-card-head">
+          <div>
+            <span className="admin-kicker">API SECRET STATUS</span>
+            <h3>Sports API key</h3>
+          </div>
+          <span className={draft.sportsApi.configured ? "success-text" : "danger-text"}>
+            {draft.sportsApi.configured ? "Imewekwa" : "Haijawekwa"}
+          </span>
+        </div>
+        <p className="settings-note">
+          Thamani ya API key haisomwi wala kuonyeshwa kwenye tovuti. Ihifadhi kupitia Firebase
+          Secret Manager: <code>firebase functions:secrets:set SPORTS_API_KEY</code>.
+        </p>
+        <label>
+          Sheria na masharti
+          <textarea
+            rows={8}
+            maxLength={20000}
+            value={draft.terms}
+            onChange={(e) => setDraft({ ...draft, terms: e.target.value })}
+          />
+        </label>
+        <div className="admin-kicker">Notifications</div>
+        {(
+          [
+            ["ticketUpdates", "Mabadiliko ya tiketi"],
+            ["results", "Matokeo ya mechi"],
+            ["announcements", "Matangazo ya homepage"],
+          ] as const
+        ).map(([key, label]) => (
+          <label className="toggle-line" key={key}>
             <input
               type="checkbox"
-              checked={draft.enabled}
-              onChange={(event) => setDraft({ ...draft, enabled: event.target.checked })}
-            />{" "}
-            Iwezeshwe
+              checked={draft.notifications[key]}
+              onChange={(e) =>
+                setDraft({
+                  ...draft,
+                  notifications: { ...draft.notifications, [key]: e.target.checked },
+                })
+              }
+            />
+            {label}
           </label>
-          <div className="composer-grid">
-            <label>
-              Min mechi
-              <input
-                type="number"
-                min="2"
-                max="10"
-                value={draft.minSelections}
-                onChange={(event) =>
-                  setDraft({ ...draft, minSelections: Number(event.target.value) })
-                }
-              />
-            </label>
-            <label>
-              Max mechi
-              <input
-                type="number"
-                min="2"
-                max="10"
-                value={draft.maxSelections}
-                onChange={(event) =>
-                  setDraft({ ...draft, maxSelections: Number(event.target.value) })
-                }
-              />
-            </label>
-            <label>
-              Min odds/selection
-              <input
-                type="number"
-                step="0.01"
-                value={draft.minOddsPerSelection}
-                onChange={(event) =>
-                  setDraft({ ...draft, minOddsPerSelection: Number(event.target.value) })
-                }
-              />
-            </label>
-            <label>
-              Max odds/selection
-              <input
-                type="number"
-                step="0.01"
-                value={draft.maxOddsPerSelection}
-                onChange={(event) =>
-                  setDraft({ ...draft, maxOddsPerSelection: Number(event.target.value) })
-                }
-              />
-            </label>
-            <label>
-              Min total odds
-              <input
-                type="number"
-                step="0.01"
-                value={draft.minTotalOdds}
-                onChange={(event) =>
-                  setDraft({ ...draft, minTotalOdds: Number(event.target.value) })
-                }
-              />
-            </label>
-            <label>
-              Max total odds
-              <input
-                type="number"
-                step="0.01"
-                value={draft.maxTotalOdds}
-                onChange={(event) =>
-                  setDraft({ ...draft, maxTotalOdds: Number(event.target.value) })
-                }
-              />
-            </label>
-          </div>
-          <div className="admin-row-actions">
-            <button className="admin-outline" disabled={saving} onClick={() => void save()}>
-              {saving ? "Inahifadhi..." : "Hifadhi policy"}
-            </button>
-            <button className="admin-sync" onClick={() => void onGenerate()}>
-              Tengeneza sasa
-            </button>
-          </div>
-          <div className="automation-history">
-            <span className="admin-kicker">AUTOMATION HISTORY</span>
-            {logs
-              .filter((row) => String(row.type ?? "").includes("auto-ticket"))
-              .slice(0, 5)
-              .map((row) => (
-                <div key={row.id}>
-                  <b>{row.ok === false ? "FAILED" : "OK"}</b>
-                  <span>{String(row.error ?? fmt(row.createdAt))}</span>
-                </div>
-              ))}
-          </div>
+        ))}
+        <button className="admin-sync" disabled={saving} onClick={() => void save()}>
+          {saving ? "Inahifadhi..." : "Hifadhi settings"}
+        </button>
+      </div>
+    </div>
+  );
+}
+function AdsSection({
+  value,
+  onSave,
+}: {
+  value: AdminSiteSettings;
+  onSave: (value: AdminSiteSettings) => Promise<void>;
+}) {
+  const [draft, setDraft] = useState(value);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => setDraft(value), [value]);
+  const save = async () => {
+    setSaving(true);
+    try {
+      await onSave(draft);
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <div className="admin-content">
+      <div className="admin-section-heading">
+        <div>
+          <span className="admin-kicker">HOMEPAGE MESSAGE</span>
+          <h2>Matangazo</h2>
+          <p>Ujumbe unaoonekana kwenye homepage ya umma.</p>
         </div>
+      </div>
+      <div className="admin-card settings-card">
+        <label className="toggle-line">
+          <input
+            type="checkbox"
+            checked={draft.announcement.enabled}
+            onChange={(e) =>
+              setDraft({
+                ...draft,
+                announcement: { ...draft.announcement, enabled: e.target.checked },
+              })
+            }
+          />
+          Onyesha tangazo
+        </label>
+        <label>
+          Kichwa
+          <input
+            maxLength={120}
+            value={draft.announcement.title}
+            onChange={(e) =>
+              setDraft({ ...draft, announcement: { ...draft.announcement, title: e.target.value } })
+            }
+          />
+        </label>
+        <label>
+          Ujumbe
+          <textarea
+            rows={5}
+            maxLength={1000}
+            value={draft.announcement.message}
+            onChange={(e) =>
+              setDraft({
+                ...draft,
+                announcement: { ...draft.announcement, message: e.target.value },
+              })
+            }
+          />
+        </label>
+        <label>
+          Aina
+          <select
+            value={draft.announcement.tone}
+            onChange={(e) =>
+              setDraft({
+                ...draft,
+                announcement: {
+                  ...draft.announcement,
+                  tone: e.target.value as AdminSiteSettings["announcement"]["tone"],
+                },
+              })
+            }
+          >
+            <option value="info">Taarifa</option>
+            <option value="success">Mafanikio</option>
+            <option value="warning">Tahadhari</option>
+          </select>
+        </label>
+        <button className="admin-sync" disabled={saving} onClick={() => void save()}>
+          {saving ? "Inahifadhi..." : "Hifadhi tangazo"}
+        </button>
       </div>
     </div>
   );
@@ -1117,10 +1479,10 @@ function ReportsSection({ reports, onExport }: { reports: Row[]; onExport: () =>
             reports.map((row) => (
               <div className="admin-list-row" key={row.id}>
                 <div className="admin-list-main admin-row-copy">
-                  <b>{String(row.reason ?? row.type ?? "Ripoti")}</b>
-                  <small>{String(row.description ?? row.details ?? "Hakuna maelezo")}</small>
+                  <b>{String(row.reason ?? row["type"] ?? "Ripoti")}</b>
+                  <small>{String(row.description ?? row["details"] ?? "Hakuna maelezo")}</small>
                   <span>
-                    Reporter: {String(row.reporterId ?? "—")} · {fmt(row.createdAt)}
+                    Reporter: {String(row.reporterId ?? "—")} · {fmt(row["createdAt"])}
                   </span>
                 </div>
               </div>

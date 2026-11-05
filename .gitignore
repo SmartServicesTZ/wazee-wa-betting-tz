@@ -30,3 +30,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Generated Firebase Functions build output
+/functions/lib/
+/functions/package-lock.json
