@@ -16,15 +16,15 @@ service cloud.firestore {
     &&request.resource.data.keys().hasOnly(['uid','username','displayName','photoURL','accountVerified','ticketCount','settledTicketCount','wonCount','lostCount','pendingCount','winRate','selectionWonCount','selectionLostCount','selectionWinRate','createdAt','updatedAt']);
    allow update:if isOwner(uid)&&request.resource.data.uid==resource.data.uid
     &&(request.resource.data.accountVerified==resource.data.accountVerified||(!resource.data.keys().hasAny(['accountVerified'])&&request.resource.data.accountVerified==true))
-    &&request.resource.data.winRate==resource.data.winRate
-    &&request.resource.data.wonCount==resource.data.wonCount
-    &&request.resource.data.lostCount==resource.data.lostCount
-    &&request.resource.data.pendingCount==resource.data.pendingCount
-    &&request.resource.data.ticketCount==resource.data.ticketCount
-    &&request.resource.data.settledTicketCount==resource.data.settledTicketCount
-    &&request.resource.data.selectionWonCount==resource.data.selectionWonCount
-    &&request.resource.data.selectionLostCount==resource.data.selectionLostCount
-    &&request.resource.data.selectionWinRate==resource.data.selectionWinRate;
+    &&request.resource.data.get('winRate',0)==resource.data.get('winRate',0)
+    &&request.resource.data.get('wonCount',0)==resource.data.get('wonCount',0)
+    &&request.resource.data.get('lostCount',0)==resource.data.get('lostCount',0)
+    &&request.resource.data.get('pendingCount',0)==resource.data.get('pendingCount',0)
+    &&request.resource.data.get('ticketCount',0)==resource.data.get('ticketCount',0)
+    &&request.resource.data.get('settledTicketCount',0)==resource.data.get('settledTicketCount',0)
+    &&request.resource.data.get('selectionWonCount',0)==resource.data.get('selectionWonCount',0)
+    &&request.resource.data.get('selectionLostCount',0)==resource.data.get('selectionLostCount',0)
+    &&request.resource.data.get('selectionWinRate',0)==resource.data.get('selectionWinRate',0);
    allow delete:if isAdmin();
   }
   match /usernames/{username}{allow read:if true;allow create:if signedIn()&&request.resource.data.uid==request.auth.uid&&!exists(/databases/$(database)/documents/usernames/$(username));allow update:if false;allow delete:if isSuperAdmin();}
