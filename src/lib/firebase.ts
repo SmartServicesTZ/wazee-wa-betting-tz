@@ -108,7 +108,7 @@ export async function registerWithPhone(
       tx.set(usernameRef, { uid: accountUser.uid, createdAt: serverTimestamp() });
       tx.set(doc(firestore, "users", accountUser.uid), {
         uid: accountUser.uid,
-        email: result.user.email,
+        email: accountUser.email,
         firstName,
         lastName,
         username,
@@ -129,10 +129,14 @@ export async function registerWithPhone(
     return accountUser;
   } catch (error) {
     // A failed Firestore profile write must not leave an Auth-only account behind.
-    try {
-      await deleteUser(result.user);
-    } catch (cleanupError) {
-      console.error("Could not remove incomplete Firebase Auth account:", cleanupError);
+    if (isNewAccount) {
+      try {
+        await deleteUser(accountUser);
+      } catch (cleanupError) {
+        console.error("Could not remove incomplete Firebase Auth account:", cleanupError);
+        await signOut(auth).catch(() => undefined);
+      }
+    } else {
       await signOut(auth).catch(() => undefined);
     }
     throw new Error(authErrorMessage(error, "Usajili umeshindikana. Jaribu tena."));
