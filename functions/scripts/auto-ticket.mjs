@@ -311,7 +311,14 @@ async function generateTicket() {
   };
   if (!settings.enabled) return { created: false, reason: "disabled" };
   const now = Date.now();
-  const matches = (await db.collection("matches").orderBy("kickoffAt", "asc").limit(80).get()).docs
+  const matches = (
+    await db
+      .collection("matches")
+      .where("kickoffAt", ">", new Date(now).toISOString())
+      .orderBy("kickoffAt", "asc")
+      .limit(200)
+      .get()
+  ).docs
     .map((doc) => ({ id: doc.id, ...doc.data() }))
     .filter((match) => isUpcoming(match, now) && hasFreshOdds(match, now));
   const availableOdds = {
