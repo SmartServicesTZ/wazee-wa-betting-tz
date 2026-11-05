@@ -166,44 +166,31 @@ function outcome(selection: any, match: any): Status {
 }
 async function updateCreatorStats(uid: string) {
   const snap = await db.collection("tickets").where("creatorId", "==", uid).get();
-  let won = 0,
-    lost = 0,
-    pending = 0;
+  let won = 0, lost = 0, pending = 0, selectionWonCount = 0, selectionLostCount = 0;
   for (const d of snap.docs) {
-    const s = d.data().status;
-    if (s === "WON") won++;
-    else if (s === "LOST") lost++;
-    else if (s === "PENDING") pending++;
+    const status = String(d.data().status ?? "PENDING");
+    if (status === "WON") won++;
+    else if (status === "LOST") lost++;
+    else if (status === "PENDING") pending++;
+    const selections = await d.ref.collection("selections").get();
+    for (const selection of selections.docs) {
+      const selectionStatus = String(selection.data().status ?? "PENDING");
+      if (selectionStatus === "WON") selectionWonCount++;
+      else if (selectionStatus === "LOST") selectionLostCount++;
+    }
   }
-  const total = won + lost;
-  await db
-    .collection("users")
-    .doc(uid)
-    .set(
-      {
-        ticketCount: snap.size,
-        wonCount: won,
-        lostCount: lost,
-        pendingCount: pending,
-        winRate: total ? Number(((won / total) * 100).toFixed(2)) : 0,
-        updatedAt: FieldValue.serverTimestamp(),
-      },
-      { merge: true },
-    );
-  await db
-    .collection("publicProfiles")
-    .doc(uid)
-    .set(
-      {
-        ticketCount: snap.size,
-        wonCount: won,
-        lostCount: lost,
-        pendingCount: pending,
-        winRate: total ? Number(((won / total) * 100).toFixed(2)) : 0,
-        updatedAt: FieldValue.serverTimestamp(),
-      },
-      { merge: true },
-    );
+  const settledTicketCount = won + lost;
+  const settledSelections = selectionWonCount + selectionLostCount;
+  const winRate = settledTicketCount ? Number(((won / settledTicketCount) * 100).toFixed(2)) : 0;
+  const selectionWinRate = settledSelections ? Number(((selectionWonCount / settledSelections) * 100).toFixed(2)) : 0;
+  const stats = {
+    ticketCount: snap.size, settledTicketCount, wonCount: won, lostCount: lost, pendingCount: pending,
+    winRate, selectionWonCount, selectionLostCount, selectionWinRate,
+    predictorBadge: settledTicketCount < 10 ? "NEUTRAL" : winRate < 35 ? "RED" : winRate < 65 ? "BLUE" : "GREEN",
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+  await db.collection("users").doc(uid).set(stats, { merge: true });
+  await db.collection("publicProfiles").doc(uid).set(stats, { merge: true });
 }
 function isFinalStatus(status: string) {
   return ["FT", "AET", "PEN"].includes(String(status).toUpperCase());
