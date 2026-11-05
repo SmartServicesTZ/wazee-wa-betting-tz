@@ -2,6 +2,7 @@ import { getApp, getApps, initializeApp } from "firebase/app";
 import {
   type Auth,
   createUserWithEmailAndPassword,
+  deleteUser,
   getAuth,
   onAuthStateChanged,
   signInWithEmailAndPassword,
@@ -20,8 +21,7 @@ import {
 import { getFunctions, httpsCallable } from "firebase/functions";
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY ?? "AIzaSyCMWh-yKE13mQ-SRA3lDugpHXV1kuVMBK8",
-  authDomain:
-    import.meta.env.VITE_FIREBASE_AUTH_DOMAIN ?? "wazee-wa-betting-tz-e7183.firebaseapp.com",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN ?? "wazee-wa-betting-tz-e7183.firebaseapp.com",
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID ?? "wazee-wa-betting-tz-e7183",
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID ?? "790161817035",
   appId: import.meta.env.VITE_FIREBASE_APP_ID ?? "1:790161817035:web:f217cebf1fca1dcb240a4e",
@@ -41,7 +41,7 @@ export function subscribeToAuth(callback: (user: User | null) => void) {
 }
 
 export function normalizeTanzaniaPhone(value: string) {
-  const digits = value.replace(/\D/g, "");
+  const digits = value.replace(/\\D/g, "");
   if (digits.startsWith("255") && digits.length === 12) return digits;
   if (digits.startsWith("0") && digits.length === 10) return "255" + digits.slice(1);
   if (digits.length === 9) return "255" + digits;
@@ -50,25 +50,40 @@ export function normalizeTanzaniaPhone(value: string) {
 function phoneLoginEmail(phone: string) {
   return normalizeTanzaniaPhone(phone) + "@phone.wazee-wa-betting-tz.com";
 }
+function authErrorMessage(error: unknown, fallback: string) {
+  const code = typeof error === "object" && error && "code" in error ? String(error.code) : "";
+  if (code.includes("email-already-in-use")) return "Namba hii tayari ina akaunti. Tumia Ingia au wasiliana na msaada WhatsApp.";
+  if (code.includes("invalid-credential") || code.includes("wrong-password") || code.includes("user-not-found")) return "Namba ya simu au password si sahihi.";
+  if (code.includes("weak-password")) return "Password iwe na angalau herufi/namba 6.";
+  if (code.includes("network-request-failed")) return "Mtandao umekatika. Hakikisha internet kisha jaribu tena.";
+  if (code.includes("too-many-requests")) return "Majaribio yamezidi. Subiri kidogo kisha jaribu tena.";
+  if (error instanceof Error && error.message) return error.message;
+  return fallback;
+}
 export async function registerWithPhone(
   phoneInput: string,
   password: string,
   profile: { firstName: string; lastName: string },
 ) {
   const phone = normalizeTanzaniaPhone(phoneInput);
+  const firstName = profile.firstName.trim();
+  const lastName = profile.lastName.trim();
+  if (!firstName || !lastName) throw new Error("Jaza jina la kwanza na la mwisho.");
+  if (password.length < 6) throw new Error("Password iwe na angalau herufi/namba 6.");
   const email = phoneLoginEmail(phone);
   const auth = getFirebaseAuth();
   if (!auth) throw new Error("Firebase Auth inapatikana kwenye browser pekee.");
   const result = await createUserWithEmailAndPassword(auth, email, password);
-  const firstName = profile.firstName.trim();
-  const lastName = profile.lastName.trim();
   const displayName = (firstName + " " + lastName).trim();
   const username = "mzee_" + phone.slice(-9);
   try {
+    // Set the display name before creating the profile, so no later profile update
+    // can make a successful registration look like a failed one.
+    await updateProfile(result.user, { displayName });
     await runTransaction(firestore, async (tx) => {
       const usernameRef = doc(firestore, "usernames", username);
       const existingUsername = await tx.get(usernameRef);
-      if (existingUsername.exists()) throw new Error("Namba hii tayari imetumika.");
+      if (existingUsername.exists()) throw new Error("Namba hii tayari imetumika. Wasiliana na msaada WhatsApp.");
       tx.set(usernameRef, { uid: result.user.uid, createdAt: serverTimestamp() });
       tx.set(doc(firestore, "users", result.user.uid), {
         uid: result.user.uid,
@@ -77,7 +92,7 @@ export async function registerWithPhone(
         lastName,
         username,
         phone,
-        displayName: displayName || username,
+        displayName,
         role: "USER",
         followersCount: 0,
         followingCount: 0,
@@ -90,18 +105,27 @@ export async function registerWithPhone(
         updatedAt: serverTimestamp(),
       });
     });
-    if (displayName) await updateProfile(result.user, { displayName });
     return result.user;
   } catch (error) {
-    await signOut(auth);
-    throw error;
+    // A failed Firestore profile write must not leave an Auth-only account behind.
+    try {
+      await deleteUser(result.user);
+    } catch (cleanupError) {
+      console.error("Could not remove incomplete Firebase Auth account:", cleanupError);
+      await signOut(auth).catch(() => undefined);
+    }
+    throw new Error(authErrorMessage(error, "Usajili umeshindikana. Jaribu tena."));
   }
 }
 export async function loginWithPhone(phoneInput: string, password: string) {
   const auth = getFirebaseAuth();
   if (!auth) throw new Error("Firebase Auth inapatikana kwenye browser pekee.");
   const phone = normalizeTanzaniaPhone(phoneInput);
-  return (await signInWithEmailAndPassword(auth, phoneLoginEmail(phone), password)).user;
+  try {
+    return (await signInWithEmailAndPassword(auth, phoneLoginEmail(phone), password)).user;
+  } catch (error) {
+    throw new Error(authErrorMessage(error, "Namba ya simu au password si sahihi."));
+  }
 }
 
 export async function logout() {
