@@ -9,7 +9,7 @@ export async function createTicket(input:{uid:string;username:string;displayName
  await Promise.all(input.selections.map((selection,index)=>setDoc(doc(firestore,"tickets",ref.id,"selections",String(index+1)),{...selection,kickoffAt:Timestamp.fromDate(new Date(selection.kickoffAt)),odds:Number(selection.odds),status:"PENDING",createdAt:serverTimestamp()})));
  return ref.id;
 }
-export async function listPublicTickets(max=20){const snap=await getDocs(query(collection(firestore,"tickets"),where("visibility","==","PUBLIC"),limit(max)));return Promise.all(snap.docs.map(async item=>{const data=item.data();const profile=await getDoc(doc(firestore,"publicProfiles",String(data.creatorId))).catch(()=>null);const p=profile?.exists()?profile.data():{};return{id:item.id,...data,creatorAccountVerified:p?.accountVerified!==false,creatorWinRate:Number(p?.winRate??0),creatorSettledTicketCount:Number(p?.settledTicketCount??0)} as PublicTicket;}));}
+export async function listPublicTickets(max=20){const snap=await getDocs(query(collection(firestore,"tickets"),where("visibility","==","PUBLIC"),limit(max)));return Promise.all(snap.docs.map(async item=>{const data=item.data();const profile=await getDoc(doc(firestore,"publicProfiles",String(data.creatorId))).catch(()=>null);const p=profile?.exists()?profile.data():{};return{id:item.id,...data,creatorAccountVerified:true,creatorWinRate:Number(p?.winRate??0),creatorSettledTicketCount:Number(p?.settledTicketCount??0)} as PublicTicket;}));}
 export async function listMatches(max=30){const snap=await getDocs(query(collection(firestore,"matches"),orderBy("kickoffAt","asc"),limit(max)));return snap.docs.map(item=>({id:item.id,...item.data()}));}
 export async function getTicket(ticketId:string){const ticket=await getDoc(doc(firestore,"tickets",ticketId));if(!ticket.exists())return null;const data=ticket.data();const [selections,profile]=await Promise.all([getDocs(query(collection(firestore,"tickets",ticketId,"selections"),orderBy("createdAt","asc"))),getDoc(doc(firestore,"publicProfiles",String(data.creatorId))).catch(()=>null)]);const p=profile?.exists()?profile.data():{};return{id:ticket.id,...data,creatorAccountVerified:p?.accountVerified===true,creatorWinRate:Number(p?.winRate??0),creatorSettledTicketCount:Number(p?.settledTicketCount??0),selections:selections.docs.map(item=>({id:item.id,...item.data()}))};}
 export async function getUserProfile(uid:string){
@@ -21,8 +21,8 @@ export async function getUserProfile(uid:string){
  const publicData={uid,username:user.username??("mzee_"+String(user.phone??"").slice(-9)),displayName:user.displayName??[user.firstName,user.lastName].filter(Boolean).join(" "),photoURL:user.photoURL??null,accountVerified:true};
  if(!publicSnap.exists()){
   await setDoc(publicRef,{...publicData,ticketCount:Number(user.ticketCount??0),settledTicketCount:Number((user.wonCount??0)+(user.lostCount??0)),wonCount:Number(user.wonCount??0),lostCount:Number(user.lostCount??0),pendingCount:Number(user.pendingCount??0),winRate:Number(user.winRate??0),selectionWonCount:0,selectionLostCount:0,selectionWinRate:0,createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
- }else if(publicSnap.data().accountVerified!==true||!publicSnap.data().username||!publicSnap.data().displayName){
-  await setDoc(publicRef,{...publicData,updatedAt:serverTimestamp()},{merge:true});
+ }else if(!publicSnap.data().username||!publicSnap.data().displayName||!Object.prototype.hasOwnProperty.call(publicSnap.data(),"accountVerified")){
+  await setDoc(publicRef,{...publicData,accountVerified:publicSnap.data().accountVerified===false?false:true,updatedAt:serverTimestamp()},{merge:true});
  }
  return user;
 }
