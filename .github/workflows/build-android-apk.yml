@@ -32,15 +32,40 @@ jobs:
         run: |
           python3 -m pip install --quiet pillow
           mkdir -p resources www
-          base64 -d resources/wazee-logo.jpg.base64 > /tmp/wazee-logo.jpg
           python3 - <<'PY'
-          from PIL import Image
-          im = Image.open('/tmp/wazee-logo.jpg').convert('RGB')
-          im.resize((1024,1024), Image.Resampling.LANCZOS).save('resources/icon.png', optimize=True)
-          canvas = Image.new('RGB',(2732,2732),(7,11,25))
-          logo = im.resize((1900,1900),Image.Resampling.LANCZOS)
-          canvas.paste(logo,((2732-1900)//2,(2732-1900)//2))
-          canvas.save('resources/splash.png', optimize=True)
+          from PIL import Image, ImageDraw, ImageFont
+          import base64
+          from pathlib import Path
+          try:
+              raw = base64.b64decode(Path('resources/wazee-logo.jpg.base64').read_text().strip(), validate=True)
+              Path('/tmp/wazee-logo.jpg').write_bytes(raw)
+              logo = Image.open('/tmp/wazee-logo.jpg').convert('RGB')
+              logo.load()
+              icon = logo.resize((1024,1024),Image.Resampling.LANCZOS)
+              icon.save('resources/icon.png',optimize=True)
+              splash = Image.new('RGB',(2732,2732),(7,11,25))
+              large = logo.resize((1900,1900),Image.Resampling.LANCZOS)
+              splash.paste(large,((2732-1900)//2,(2732-1900)//2))
+              splash.save('resources/splash.png',optimize=True)
+          except Exception as error:
+              print('Logo image decode failed; creating branded fallback artwork:',error)
+              icon = Image.new('RGB',(1024,1024),(7,11,25))
+              d = ImageDraw.Draw(icon)
+              d.ellipse((92,92,932,932),outline=(70,255,105),width=24)
+              d.ellipse((190,190,834,834),fill=(8,22,28),outline=(0,235,130),width=28)
+              d.ellipse((320,320,704,704),fill=(25,220,35),outline=(220,255,70),width=20)
+              d.polygon([(512,350),(575,395),(552,470),(472,470),(449,395)],fill=(5,15,25))
+              d.polygon([(360,475),(430,455),(455,530),(410,590),(340,550)],fill=(5,15,25))
+              d.polygon([(664,475),(594,455),(569,530),(614,590),(684,550)],fill=(5,15,25))
+              try: font=ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',82)
+              except: font=ImageFont.load_default()
+              d.text((512,135),'WAZEE WA',(255,255,255),font=font,anchor='mm',stroke_width=3,stroke_fill=(10,40,20))
+              d.text((512,235),'BETTING TZ',(130,255,30),font=font,anchor='mm',stroke_width=3,stroke_fill=(10,40,20))
+              splash=Image.new('RGB',(2732,2732),(7,11,25))
+              large=icon.resize((1900,1900),Image.Resampling.LANCZOS)
+              splash.paste(large,((2732-1900)//2,(2732-1900)//2))
+              icon.save('resources/icon.png',optimize=True)
+              splash.save('resources/splash.png',optimize=True)
           PY
           printf '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#070b19"></body></html>' > www/index.html
       - name: Install Capacitor and Android tooling
