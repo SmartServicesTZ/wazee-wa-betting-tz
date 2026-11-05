@@ -11,9 +11,12 @@ import {
   type User,
 } from "firebase/auth";
 import {
+  collection,
   doc,
   getDoc,
+  getDocs,
   getFirestore,
+  limit,
   serverTimestamp,
   setDoc,
   runTransaction,
@@ -238,12 +241,64 @@ export type AdminDashboardData = {
     revenue: number;
   };
 };
-export async function adminDashboard() {
-  const callable = httpsCallable<Record<string, never>, AdminDashboardData>(
-    functions,
-    "adminDashboard",
-  );
-  return (await callable({})).data;
+export async function adminDashboard(): Promise<AdminDashboardData> {
+  // Read the actual Firestore collections directly so the dashboard still loads
+  // when optional callable dashboard functions have not yet been deployed.
+  const [usersSnap, ticketsSnap, matchesSnap, paymentsSnap] = await Promise.all([
+    getDocs(query(collection(firestore, "users"), limit(1000))),
+    getDocs(query(collection(firestore, "tickets"), limit(1000))),
+    getDocs(query(collection(firestore, "matches"), limit(1000))),
+    getDocs(query(collection(firestore, "payments"), limit(500))),
+  ]);
+  const users = usersSnap.docs.map((item) => {
+    const value = item.data();
+    const created = value.createdAt && typeof value.createdAt === "object" && "toDate" in value.createdAt
+      ? (value.createdAt as { toDate: () => Date }).toDate().toISOString()
+      : value.createdAt ? String(value.createdAt) : undefined;
+    return {
+      uid: item.id,
+      displayName: String(value.displayName ?? ""),
+      firstName: String(value.firstName ?? ""),
+      lastName: String(value.lastName ?? ""),
+      username: String(value.username ?? ""),
+      phone: String(value.phone ?? ""),
+      role: (value.role === "ADMIN" || value.role === "SUPER_ADMIN" ? value.role : "USER") as AdminUser["role"],
+      disabled: value.disabled === true,
+      createdAt: created,
+      ticketCount: Number(value.ticketCount ?? 0),
+      winRate: Number(value.winRate ?? 0),
+    };
+  });
+  const tickets = ticketsSnap.docs.map((item) => item.data());
+  const payments = paymentsSnap.docs.map((item) => item.data());
+  const paidRevenue = payments.reduce((total, payment) => {
+    const status = String(payment.status ?? "").toUpperCase();
+    return status === "PAID" || status === "SUCCESS" || status === "COMPLETED"
+      ? total + Number(payment.amount ?? 0)
+      : total;
+  }, 0);
+  const now = new Date();
+  const registrationTrend = Array.from({ length: 14 }, (_, index) => {
+    const day = new Date(now);
+    day.setDate(now.getDate() - (13 - index));
+    const key = day.toISOString().slice(0, 10);
+    const count = users.filter((item) => item.createdAt?.slice(0, 10) === key).length;
+    return { label: day.toLocaleDateString("sw-TZ", { day: "2-digit", month: "short" }), count };
+  });
+  return {
+    users,
+    registrationTrend,
+    metrics: {
+      users: users.length,
+      activeUsers: users.filter((item) => !item.disabled).length,
+      tickets: tickets.length,
+      won: tickets.filter((item) => item.status === "WON").length,
+      lost: tickets.filter((item) => item.status === "LOST").length,
+      pending: tickets.filter((item) => item.status === "PENDING").length,
+      matches: matchesSnap.size,
+      revenue: paidRevenue,
+    },
+  };
 }
 export async function adminSetUserStatus(uid: string, disabled: boolean) {
   const callable = httpsCallable<
@@ -289,12 +344,37 @@ export type AutoConfig = {
   leagueIds?: string[];
   markets?: string[];
 };
-export async function adminMatchData() {
-  const callable = httpsCallable<
-    Record<string, never>,
-    { matches: AdminMatch[]; autoConfig: AutoConfig; logs: RowLike[] }
-  >(functions, "adminMatchData");
-  return (await callable({})).data;
+export async function adminMatchData(): Promise<{
+  matches: AdminMatch[];
+  autoConfig: AutoConfig;
+  logs: Array<Record<string, unknown>>;
+}> {
+  const defaults: AutoConfig = {
+    enabled: false,
+    minSelections: 2,
+    maxSelections: 5,
+    minOddsPerSelection: 1.1,
+    maxOddsPerSelection: 1.65,
+    minTotalOdds: 1,
+    maxTotalOdds: 12,
+    risk: "LOW",
+  };
+  const [matchesSnap, logsSnap] = await Promise.all([
+    getDocs(query(collection(firestore, "matches"), limit(300))),
+    getDocs(query(collection(firestore, "api_logs"), limit(50))).catch(() => null),
+  ]);
+  let autoConfig = defaults;
+  try {
+    const configSnap = await getDoc(doc(firestore, "automation", "config"));
+    if (configSnap.exists()) autoConfig = { ...defaults, ...configSnap.data() } as AutoConfig;
+  } catch {
+    // ADMIN (non-SUPER_ADMIN) may not have access to private automation settings.
+  }
+  return {
+    matches: matchesSnap.docs.map((item) => ({ id: item.id, ...item.data() }) as AdminMatch),
+    autoConfig,
+    logs: logsSnap?.docs.map((item) => ({ id: item.id, ...item.data() })) ?? [],
+  };
 }
 export async function adminSetAutoConfig(config: AutoConfig) {
   const callable = httpsCallable<AutoConfig, { ok: boolean; config: AutoConfig }>(
