@@ -297,3 +297,132 @@ input:focus,textarea:focus,select:focus,.search:focus-within{border-color:#b8df4
 .admin-entry{display:inline-flex;align-items:center;gap:6px;padding:8px 11px;border:1px solid #62549b;border-radius:10px;background:linear-gradient(110deg,#a78bfa20,#6595ff18);color:#d9d0ff!important;text-decoration:none;font-size:11px;font-weight:900;white-space:nowrap}
 .admin-entry:hover{border-color:#a78bfa;background:#a78bfa28}
 @media(max-width:800px){.top-user .admin-entry{padding:7px 8px;font-size:10px}.bottom-nav{grid-template-columns:repeat(5,1fr)}.bottom-nav a{font-size:8px}}
+
+
+/* WAZEE WA BETTING TZ — DISTINCT PREMIUM NIGHT ARENA REDESIGN */
+:root{
+  color-scheme:dark;
+  --bg:#070b19;
+  --panel:#10172b;
+  --panel-2:#151e36;
+  --line:#2b3658;
+  --muted:#a8b2cf;
+  --accent:#c5a3ff;
+  --green:#52e0ad;
+  --blue:#7fa8ff;
+  --ink:#f7f4ff;
+  --gold:#f3c66b;
+}
+html,body{background:#070b19!important;color:var(--ink)}
+body{
+ background:
+ radial-gradient(ellipse at 12% -12%,#45246e66 0,transparent 34rem),
+ radial-gradient(ellipse at 92% 5%,#173e6866 0,transparent 32rem),
+ linear-gradient(180deg,#090e20 0%,#070b19 65%,#090d1d 100%)!important;
+}
+.topbar{
+ background:#090e20ed!important;border-bottom:1px solid #394368!important;
+ box-shadow:0 12px 40px #02051399!important;
+}
+.brand-mark{
+ background:linear-gradient(135deg,#d7b7ff,#8e70e8)!important;
+ color:#100b20!important;box-shadow:0 0 28px #a879ff55!important;
+}
+.brand b{letter-spacing:.11em}
+.brand small{color:#aeb9d9!important}
+.top-nav a:hover,.top-nav a.active{background:#b78cff20!important;color:#e5d2ff!important}
+.user-chip span,.user-chip img,.ticket-avatar,.comment-avatar{
+ background:linear-gradient(135deg,#503b78,#1c5570)!important;
+ color:#e2ccff!important;border-color:#62548d!important;
+}
+.page{max-width:1320px}
+.hero-card{
+ border:1px solid #64518d!important;
+ background:
+ radial-gradient(circle at 88% 12%,#9c6bea30,transparent 18rem),
+ linear-gradient(118deg,#211a3c 0%,#131c35 55%,#10283a 100%)!important;
+ box-shadow:0 28px 90px #02051399, inset 0 1px #ffffff12!important;
+}
+.hero-card:before{
+ border-color:#c5a3ff55!important;
+ box-shadow:0 0 0 42px #c5a3ff0c,0 0 0 95px #52e0ad09!important;
+ background:radial-gradient(circle,#c5a3ff25,transparent 68%)!important;
+}
+.hero-copy h1 em{
+ color:transparent!important;
+ background:linear-gradient(90deg,#e0c7ff,#f3c66b 55%,#52e0ad)!important;
+ -webkit-background-clip:text!important;background-clip:text!important;
+}
+.eyebrow,.section-kicker,.panel-head>a{color:#c5a3ff!important}
+.btn-primary,.primary-button,.auth-submit{
+ background:linear-gradient(110deg,#d8baff,#a987f2 58%,#8ba9ff)!important;
+ color:#100b20!important;box-shadow:0 10px 30px #a987f244!important;
+}
+.btn-secondary,.ghost-button{
+ border:1px solid #59648c!important;background:#ffffff09!important;color:#f7f4ff!important;
+}
+.panel,.auth-card,.profile-hero,.admin-card{
+ background:linear-gradient(145deg,#151d36,#0e162a)!important;
+ border:1px solid #344064!important;box-shadow:0 18px 48px #02051366!important;
+}
+.panel{border-radius:22px!important}
+.hero-stats div,.trust-strip>div,.stat-box,.admin-stat{
+ background:linear-gradient(145deg,#1a2340,#11192e)!important;
+ border-color:#354267!important;
+}
+.hero-stats svg,.trust-strip svg{color:var(--gold)!important}
+.hero-stats b,.trust-strip b{color:#f7f4ff}
+.ticket,.match,.leader-row{
+ background:#ffffff06!important;border-color:#2c385d!important;
+}
+.ticket:hover,.match:hover,.leader-row:hover{
+ background:#b78cff14!important;border-color:#8b70c5!important;
+}
+.ticket-meta strong,.market button b,.selected-list strong,.selection-row strong,.match time{
+ color:var(--gold)!important;
+}
+.status-won{background:#103d35!important;color:#67efbd!important}
+.status-lost{background:#482438!important;color:#ff9eb7!important}
+.status-pending{background:#40315c!important;color:#e0c7ff!important}
+.search,input,textarea,select{
+ background:#0a1124!important;border-color:#354267!important;color:#f7f4ff!important;
+}
+.search:focus-within,input:focus,textarea:focus,select:focus{
+ border-color:#b78cff!important;box-shadow:0 0 0 3px #b78cff24!important;
+}
+.bottom-nav{
+ background:#090e20f5!important;border-color:#394368!important;
+ box-shadow:0 -12px 36px #02051366!important;
+}
+.bottom-nav a:hover,.bottom-nav a:focus-visible{color:#d8baff!important}
+.admin-layout{background:radial-gradient(ellipse at 78% 0,#39265e 0,transparent 34rem),#080d1d!important}
+.admin-sidebar{background:#0b1225!important;border-color:#303b60!important}
+.admin-sidebar-nav button:hover,.admin-sidebar-nav button.active{
+ background:#b78cff1b!important;border-color:#8065b7!important;color:#d8baff!important;
+}
+.admin-kicker,.admin-sidebar-head b,.admin-profile span,.admin-count{color:#d8baff!important}
+.admin-avatar{background:linear-gradient(135deg,#d8baff,#f3c66b)!important;color:#171027!important}
+.admin-welcome{
+ border-color:#65518d!important;
+ background:linear-gradient(115deg,#241b40,#14213a 62%,#123b3a)!important;
+}
+.admin-stat.blue{color:#8bb7ff!important}.admin-stat.green{color:#52e0ad!important}
+.admin-stat.purple{color:#d1b1ff!important}.admin-stat.gold{color:#f3c66b!important}
+.admin-sync{background:linear-gradient(110deg,#d8baff,#a987f2)!important;color:#100b20!important}
+.admin-outline,.row-action{color:#d8baff!important;border-color:#65518d!important}
+.admin-table-wrap{background:#10182d!important;border-color:#344064!important}
+.admin-table th{border-color:#344064!important}
+.admin-table td{border-color:#263251!important}
+.admin-table tbody tr:hover{background:#b78cff0c!important}
+.admin-drawer{background:linear-gradient(145deg,#1a2140,#0b1326)!important;border-color:#59648c!important}
+.admin-entry{
+ border-color:#8065b7!important;
+ background:linear-gradient(110deg,#b78cff25,#7fa8ff20)!important;
+ color:#e5d2ff!important;
+}
+.admin-entry:hover{background:#b78cff35!important;border-color:#d8baff!important}
+.alert{border-color:#8c713d!important;background:#302817!important;color:#ffe4a3!important}
+@media(max-width:800px){
+ .hero-card{border-radius:22px!important}
+ .bottom-nav{backdrop-filter:blur(20px)}
+}
