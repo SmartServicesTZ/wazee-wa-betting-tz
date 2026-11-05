@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import type { User } from "firebase/auth";
 import { AppShell } from "../components/app-shell";
 import { subscribeToAuth } from "../lib/firebase";
-import { createTicket, getUserProfile, listMatches } from "../lib/firestore";
+import { createTicket, getUserProfile, listUpcomingMatches } from "../lib/firestore";
 import { calculateTotalOdds, type MarketKey, type Selection } from "../lib/betting";
 
 export const Route=createFileRoute("/create-ticket")({component:CreateTicket});
@@ -30,7 +30,7 @@ function drawTicketImage(title:string, selections:Selection[], totalOdds:number)
 }
 function CreateTicket(){
  const nav=useNavigate(); const[user,setUser]=useState<User|null>(null); const[matches,setMatches]=useState<any[]>([]); const[title,setTitle]=useState(""); const[description,setDescription]=useState(""); const[sport,setSport]=useState("Football"); const[risk,setRisk]=useState<"LOW"|"MEDIUM"|"HIGH">("MEDIUM"); const[access,setAccess]=useState<"FREE"|"VIP">("FREE"); const[visibility,setVisibility]=useState<"PUBLIC"|"PRIVATE">("PUBLIC"); const[chosen,setChosen]=useState<Selection[]>([]); const[busy,setBusy]=useState(false); const[loading,setLoading]=useState(true); const[query,setQuery]=useState(""); const[league,setLeague]=useState("ALL"); const[date,setDate]=useState("ALL");
- useEffect(()=>subscribeToAuth(setUser),[]); useEffect(()=>{listMatches(150).then(setMatches).catch(e=>toast.error(e instanceof Error?e.message:"Mechi hazijapatikana.")).finally(()=>setLoading(false))},[]);
+ useEffect(()=>subscribeToAuth(setUser),[]); useEffect(()=>{listUpcomingMatches(150).then(setMatches).catch(e=>toast.error(e instanceof Error?e.message:"Mechi hazijapatikana.")).finally(()=>setLoading(false))},[]);
  const totalOdds=useMemo(()=>calculateTotalOdds(chosen),[chosen]);
  const leagues=useMemo(()=>Array.from(new Set(matches.map(m=>String(m.leagueName||"Ligi nyingine")))).sort(),[matches]);
  const visibleMatches=useMemo(()=>matches.filter(m=>{const text=(m.homeTeamName+" "+m.awayTeamName+" "+m.leagueName).toLowerCase();const day=new Date(m.kickoffAt).toISOString().slice(0,10);return text.includes(query.toLowerCase())&&(league==="ALL"||String(m.leagueName||"Ligi nyingine")===league)&&(date==="ALL"||day===date)}),[matches,query,league,date]);

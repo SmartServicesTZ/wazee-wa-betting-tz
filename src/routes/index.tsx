@@ -3,11 +3,12 @@ import { useEffect, useMemo, useState } from "react";
 import { CalendarDays, ChevronDown, ChevronUp, Clock3, Search, Trophy } from "lucide-react";
 import type { User } from "firebase/auth";
 import { AppShell } from "../components/app-shell";
-import { listMatches } from "../lib/firestore";
+import { listCurrentAndUpcomingMatches } from "../lib/firestore";
 import { subscribeToAuth } from "../lib/firebase";
 
 export const Route = createFileRoute("/")({ component: Home });
 type Match = Record<string, any> & { id: string; homeTeamName: string; awayTeamName: string; kickoffAt: string };
+const LIVE_MATCH_STATUSES = new Set(["LIVE", "IN_PLAY", "1H", "HT", "2H", "ET", "BT", "P", "INT", "SUSP"]);
 function TeamBadge({name,src}:{name:string;src?:string}) {
   return <span className="gsb-team-badge">{src ? <img src={src} alt={name} loading="lazy" onError={e=>{e.currentTarget.style.display="none";}}/> : <b>{name?.slice(0,1)||"?"}</b>}</span>;
 }
@@ -18,7 +19,7 @@ function Home() {
   const [error,setError]=useState("");
   const [tab,setTab]=useState("UPCOMING");
   const [sport,setSport]=useState("Football");
-  const [day,setDay]=useState("TODAY");
+  const [day,setDay]=useState("ALL");
   const [sort,setSort]=useState("TIME");
   const [market,setMarket]=useState("1X2");
   const [query,setQuery]=useState("");
@@ -27,7 +28,7 @@ function Home() {
   const [searchOpen,setSearchOpen]=useState(false);
   const [slipOpen,setSlipOpen]=useState(false);
   useEffect(()=>subscribeToAuth(setUser),[]);
-  const load=()=>{setLoading(true);setError("");listMatches(150).then(rows=>setMatches(rows as Match[])).catch(e=>setError(e instanceof Error?e.message:"Imeshindikana kupakia mechi.")).finally(()=>setLoading(false));};
+  const load=()=>{setLoading(true);setError("");listCurrentAndUpcomingMatches(150).then(rows=>setMatches(rows as Match[])).catch(e=>setError(e instanceof Error?e.message:"Imeshindikana kupakia mechi.")).finally(()=>setLoading(false));};
   useEffect(()=>{load();},[]);
   const visible=useMemo(()=>{
     const now=new Date();
@@ -36,7 +37,7 @@ function Home() {
       const date=new Date(m.kickoffAt);
       const sameDay=date.toDateString()===now.toDateString();
       const status=String(m.status||"").toUpperCase();
-      const live=status==="LIVE"||status==="IN_PLAY";
+      const live=LIVE_MATCH_STATUSES.has(status);
       if(tab==="LIVE"&&!live)return false;
       if(tab==="UPCOMING"&&(live||date.getTime()<now.getTime()))return false;
       if(day==="TODAY"&&!sameDay)return false;

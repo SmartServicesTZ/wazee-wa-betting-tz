@@ -10,6 +10,26 @@ export async function createTicket(input:{uid:string;username:string;displayName
  return ref.id;
 }
 export async function listPublicTickets(max=20){const snap=await getDocs(query(collection(firestore,"tickets"),where("visibility","==","PUBLIC"),limit(max)));return Promise.all(snap.docs.map(async item=>{const data=item.data();const profile=await getDoc(doc(firestore,"publicProfiles",String(data.creatorId))).catch(()=>null);const p=profile?.exists()?profile.data():{};return{id:item.id,...data,creatorAccountVerified:true,creatorWinRate:Number(p?.winRate??0),creatorSettledTicketCount:Number(p?.settledTicketCount??0)} as PublicTicket;}));}
+async function listMatchesFrom(kickoffAt: string, max: number) {
+  const snap = await getDocs(
+    query(
+      collection(firestore, "matches"),
+      where("kickoffAt", ">=", kickoffAt),
+      orderBy("kickoffAt", "asc"),
+      limit(max),
+    ),
+  );
+  return snap.docs.map((item) => ({ id: item.id, ...item.data() }));
+}
+
+export async function listUpcomingMatches(max = 150) {
+  return listMatchesFrom(new Date().toISOString(), max);
+}
+
+export async function listCurrentAndUpcomingMatches(max = 150) {
+  return listMatchesFrom(new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(), max);
+}
+
 export async function listMatches(max=30){const snap=await getDocs(query(collection(firestore,"matches"),orderBy("kickoffAt","asc"),limit(max)));return snap.docs.map(item=>({id:item.id,...item.data()}));}
 export async function getTicket(ticketId:string){const ticket=await getDoc(doc(firestore,"tickets",ticketId));if(!ticket.exists())return null;const data=ticket.data();const [selections,profile]=await Promise.all([getDocs(query(collection(firestore,"tickets",ticketId,"selections"),orderBy("createdAt","asc"))),getDoc(doc(firestore,"publicProfiles",String(data.creatorId))).catch(()=>null)]);const p=profile?.exists()?profile.data():{};return{id:ticket.id,...data,creatorAccountVerified:p?.accountVerified===true,creatorWinRate:Number(p?.winRate??0),creatorSettledTicketCount:Number(p?.settledTicketCount??0),selections:selections.docs.map(item=>({id:item.id,...item.data()}))};}
 export async function getUserProfile(uid:string){
