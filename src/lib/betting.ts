@@ -33,3 +33,16 @@ export function deriveTicketStatus(statuses: SelectionStatus[]): TicketStatus {
   if (active.includes("PENDING")) return "PENDING";
   return "WON";
 }
+
+
+export type PredictorBadge = { color: "red" | "blue" | "green" | "neutral"; label: string; eligible: boolean };
+export function getPredictorBadge(winRate: number, settledTicketCount: number): PredictorBadge {
+  if (settledTicketCount < 10) return { color: "neutral", label: "Takwimu zinaendelea", eligible: false };
+  if (winRate < 35) return { color: "red", label: "Matokeo mabaya", eligible: true };
+  if (winRate < 65) return { color: "blue", label: "Matokeo ya wastani", eligible: true };
+  return { color: "green", label: "Matokeo mazuri sana", eligible: true };
+}
+export function getWinRate(won: number, lost: number) {
+  const completed = won + lost;
+  return completed ? Number(((won / completed) * 100).toFixed(2)) : 0;
+}
