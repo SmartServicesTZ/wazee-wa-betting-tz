@@ -1,0 +1,25 @@
+{
+  "appId": "tz.wazeebetting.app",
+  "appName": "Wazee wa Betting TZ",
+  "webDir": "www",
+  "server": {
+    "url": "https://smartservicestz.github.io/wazee-wa-betting-tz/",
+    "cleartext": false,
+    "allowNavigation": [
+      "smartservicestz.github.io"
+    ]
+  },
+  "android": {
+    "allowMixedContent": false,
+    "backgroundColor": "#070b19"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 1800,
+      "launchAutoHide": true,
+      "backgroundColor": "#070b19",
+      "androidScaleType": "CENTER_CROP",
+      "showSpinner": false
+    }
+  }
+}
