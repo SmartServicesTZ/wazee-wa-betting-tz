@@ -90,14 +90,19 @@ function Matches() {
   const [predictionSummary, setPredictionSummary] = useState<PredictionSummary>({});
   const [sort, setSort] = useState("popular");
   const [refreshing, setRefreshing] = useState(false);
+  const [matchesError, setMatchesError] = useState("");
   const refreshMatches = useCallback(async () => {
     setRefreshing(true);
     const [matchRows, predictionRows, summary] = await Promise.all([
-      listMatches(100).catch(() => []),
+      listMatches(100).catch((error) => {
+        setMatchesError(error instanceof Error ? error.message : "Imeshindikana kusoma mechi kutoka Firebase.");
+        return [];
+      }),
       listAiPredictions(200).catch(() => []),
       getAiPredictionSummary().catch(() => ({})),
     ]);
     setMatches(matchRows as MatchRow[]);
+    if (matchRows.length) setMatchesError("");
     setAiPredictions(predictionRows as MatchRow[]);
     setPredictionSummary(summary as PredictionSummary);
     setRefreshing(false);
@@ -301,7 +306,7 @@ function Matches() {
                 </div>
               ))
             ) : (
-              <div className="empty">Hakuna mechi zilizosawazishwa bado.</div>
+              <div className="empty">{matchesError || "Hakuna mechi zilizosawazishwa bado."}</div>
             )}
           </div>
         </div>
