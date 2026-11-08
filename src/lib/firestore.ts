@@ -117,7 +117,7 @@ export async function createTicket(input: {
       username: input.username,
       displayName: input.displayName,
       photoURL: input.photoURL ?? null,
-      accountVerified: true,
+      accountVerified: false,
       ticketCount: 0,
       settledTicketCount: 0,
       wonCount: 0,
@@ -168,7 +168,7 @@ export async function listPublicTickets(max = 20) {
       return {
         id: item.id,
         ...data,
-        creatorAccountVerified: true,
+        creatorAccountVerified: publicData?.accountVerified === true,
         creatorWinRate: Number(publicData?.winRate ?? 0),
         creatorSettledTicketCount: Number(publicData?.settledTicketCount ?? 0),
       } as PublicTicket;
@@ -258,7 +258,7 @@ export async function getUserProfile(uid: string) {
     username: user.username ?? `mzee_${String(user.phone ?? "").slice(-9)}`,
     displayName: user.displayName ?? [user.firstName, user.lastName].filter(Boolean).join(" "),
     photoURL: user.photoURL ?? null,
-    accountVerified: true,
+    accountVerified: false,
   };
   if (!publicSnapshot.exists()) {
     await setDoc(publicRef, {

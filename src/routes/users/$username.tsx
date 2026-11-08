@@ -5,16 +5,175 @@ import { AppShell } from "../../components/app-shell";
 import { PredictorBadge } from "../../components/predictor-badge";
 import { firestore, subscribeToAuth } from "../../lib/firebase";
 
-export const Route=createFileRoute("/users/$username")({component:Profile});
-function Profile(){
- const{username}=Route.useParams();const[user,setUser]=useState<any>(null);const[profile,setProfile]=useState<any>(null);const[tickets,setTickets]=useState<any[]>([]);const[period,setPeriod]=useState<"7"|"30"|"all">("all");
- useEffect(()=>subscribeToAuth(setUser),[]);
- useEffect(()=>{getDocs(query(collection(firestore,"publicProfiles"),where("username","==",username))).then(s=>{if(!s.empty)setProfile({id:s.docs[0].id,...s.docs[0].data()})});getDocs(query(collection(firestore,"tickets"),where("creatorUsername","==",username),where("visibility","==","PUBLIC"))).then(s=>setTickets(s.docs.map(d=>({id:d.id,...d.data()}))));},[username]);
- const periodTickets=useMemo(()=>tickets.filter(t=>{if(period==="all")return true;const date=t.createdAt?.toDate?.()??(t.createdAt?new Date(t.createdAt):null);return date&&date.getTime()>=Date.now()-Number(period)*86400000;}),[tickets,period]);
- const won=periodTickets.filter(t=>t.status==="WON").length;const lost=periodTickets.filter(t=>t.status==="LOST").length;const pending=periodTickets.filter(t=>t.status==="PENDING").length;const rate=won+lost?won/(won+lost)*100:0;
- return <AppShell user={user}><div className="page narrow">{profile?<><section className="profile-hero"><div className="ticket-avatar large">{profile.displayName?.[0]??"U"}</div><div><span className="eyebrow">CREATOR PROFILE</span><h1>{profile.displayName} <PredictorBadge accountVerified={profile.accountVerified} winRate={profile.winRate} settledTicketCount={profile.settledTicketCount}/></h1><p>@{profile.username}</p></div></section>
- <div className="stat-grid"><div className="stat-box"><small>Win rate ya mikeka</small><b>{Number(profile.winRate??0).toFixed(2)}%</b></div><div className="stat-box"><small>Mikeka yote</small><b>{profile.ticketCount??0}</b></div><div className="stat-box"><small>WON</small><b>{profile.wonCount??0}</b></div><div className="stat-box"><small>LOST</small><b>{profile.lostCount??0}</b></div></div>
- <section className="panel"><div className="panel-head"><div><span className="eyebrow">PERFORMANCE TRACKER</span><h3>Rekodi za muda</h3></div><select value={period} onChange={e=>setPeriod(e.target.value as any)}><option value="7">Siku 7</option><option value="30">Siku 30</option><option value="all">Muda wote</option></select></div><div className="predictor-stats-grid"><div className="predictor-stat"><small>Win rate ya kipindi</small><strong>{rate.toFixed(1)}%</strong></div><div className="predictor-stat"><small>Mikeka iliyokamilika</small><strong>{won+lost}</strong></div><div className="predictor-stat"><small>WON</small><strong>{won}</strong></div><div className="predictor-stat"><small>LOST / PENDING</small><strong>{lost} / {pending}</strong></div></div><p className="fine-print">Asilimia ya jumla hutumia mikeka iliyokamilika pekee. PENDING haiingii kwenye hesabu.</p></section>
- <section className="panel"><div className="panel-head"><h3>Usahihi wa mechi moja moja</h3></div><div className="predictor-stats-grid"><div className="predictor-stat"><small>Mechi WON</small><strong>{profile.selectionWonCount??0}</strong></div><div className="predictor-stat"><small>Mechi LOST</small><strong>{profile.selectionLostCount??0}</strong></div><div className="predictor-stat"><small>Usahihi wa selections</small><strong>{Number(profile.selectionWinRate??0).toFixed(2)}%</strong></div><div className="predictor-stat"><small>Followers</small><strong>{profile.followersCount??0}</strong></div></div></section>
- <div className="panel"><div className="panel-head"><h3>Public tickets</h3></div><div className="ticket-list">{tickets.map(t=><Link className="ticket" to="/tickets/$ticketId" params={{ticketId:t.id}} key={t.id}><span className="ticket-avatar">{t.title?.[0]??"T"}</span><div className="ticket-main"><div className="ticket-line"><b>{t.title}</b><span className={`status status-${String(t.status).toLowerCase()}`}>{t.status}</span></div><small>{t.selectionCount} selections • {Number(t.totalOdds).toFixed(2)} odds</small></div></Link>)}</div></div></>:<div className="empty"><b>Creator hajapatikana.</b><Link to="/community">Rudi community</Link></div>}</div></AppShell>;
+export const Route = createFileRoute("/users/$username")({ component: Profile });
+function Profile() {
+  const { username } = Route.useParams();
+  const [user, setUser] = useState<any>(null);
+  const [profile, setProfile] = useState<any>(null);
+  const [tickets, setTickets] = useState<any[]>([]);
+  const [period, setPeriod] = useState<"7" | "30" | "all">("all");
+  useEffect(() => subscribeToAuth(setUser), []);
+  useEffect(() => {
+    getDocs(query(collection(firestore, "publicProfiles"), where("username", "==", username))).then(
+      (s) => {
+        if (!s.empty) setProfile({ id: s.docs[0].id, ...s.docs[0].data() });
+      },
+    );
+    getDocs(
+      query(
+        collection(firestore, "tickets"),
+        where("creatorUsername", "==", username),
+        where("visibility", "==", "PUBLIC"),
+      ),
+    ).then((s) => setTickets(s.docs.map((d) => ({ id: d.id, ...d.data() }))));
+  }, [username]);
+  const periodTickets = useMemo(
+    () =>
+      tickets.filter((t) => {
+        if (period === "all") return true;
+        const date = t.createdAt?.toDate?.() ?? (t.createdAt ? new Date(t.createdAt) : null);
+        return date && date.getTime() >= Date.now() - Number(period) * 86400000;
+      }),
+    [tickets, period],
+  );
+  const won = periodTickets.filter((t) => t.status === "WON").length;
+  const lost = periodTickets.filter((t) => t.status === "LOST").length;
+  const pending = periodTickets.filter((t) => t.status === "PENDING").length;
+  const rate = won + lost ? (won / (won + lost)) * 100 : 0;
+  return (
+    <AppShell user={user}>
+      <div className="page narrow">
+        {profile ? (
+          <>
+            <section className="profile-hero">
+              <div className="ticket-avatar large">{profile.displayName?.[0] ?? "U"}</div>
+              <div>
+                <span className="eyebrow">CREATOR PROFILE</span>
+                <h1>
+                  {profile.displayName}{" "}
+                  <PredictorBadge
+                    accountVerified={profile.accountVerified}
+                    winRate={profile.winRate}
+                    settledTicketCount={profile.settledTicketCount}
+                  />
+                </h1>
+                <p>@{profile.username}</p>
+              </div>
+            </section>
+            <div className="stat-grid">
+              <div className="stat-box">
+                <small>Win rate ya mikeka</small>
+                <b>{Number(profile.winRate ?? 0).toFixed(2)}%</b>
+              </div>
+              <div className="stat-box">
+                <small>Mikeka yote</small>
+                <b>{profile.ticketCount ?? 0}</b>
+              </div>
+              <div className="stat-box">
+                <small>WON</small>
+                <b>{profile.wonCount ?? 0}</b>
+              </div>
+              <div className="stat-box">
+                <small>LOST</small>
+                <b>{profile.lostCount ?? 0}</b>
+              </div>
+            </div>
+            <section className="panel">
+              <div className="panel-head">
+                <div>
+                  <span className="eyebrow">PERFORMANCE TRACKER</span>
+                  <h3>Rekodi za muda</h3>
+                </div>
+                <select value={period} onChange={(e) => setPeriod(e.target.value as any)}>
+                  <option value="7">Siku 7</option>
+                  <option value="30">Siku 30</option>
+                  <option value="all">Muda wote</option>
+                </select>
+              </div>
+              <div className="predictor-stats-grid">
+                <div className="predictor-stat">
+                  <small>Win rate ya kipindi</small>
+                  <strong>{rate.toFixed(1)}%</strong>
+                </div>
+                <div className="predictor-stat">
+                  <small>Mikeka iliyokamilika</small>
+                  <strong>{won + lost}</strong>
+                </div>
+                <div className="predictor-stat">
+                  <small>WON</small>
+                  <strong>{won}</strong>
+                </div>
+                <div className="predictor-stat">
+                  <small>LOST / PENDING</small>
+                  <strong>
+                    {lost} / {pending}
+                  </strong>
+                </div>
+              </div>
+              <p className="fine-print">
+                Asilimia ya jumla hutumia mikeka iliyokamilika pekee. PENDING haiingii kwenye
+                hesabu.
+              </p>
+            </section>
+            <section className="panel">
+              <div className="panel-head">
+                <h3>Usahihi wa mechi moja moja</h3>
+              </div>
+              <div className="predictor-stats-grid">
+                <div className="predictor-stat">
+                  <small>Mechi WON</small>
+                  <strong>{profile.selectionWonCount ?? 0}</strong>
+                </div>
+                <div className="predictor-stat">
+                  <small>Mechi LOST</small>
+                  <strong>{profile.selectionLostCount ?? 0}</strong>
+                </div>
+                <div className="predictor-stat">
+                  <small>Usahihi wa selections</small>
+                  <strong>{Number(profile.selectionWinRate ?? 0).toFixed(2)}%</strong>
+                </div>
+                <div className="predictor-stat">
+                  <small>Followers</small>
+                  <strong>{profile.followersCount ?? 0}</strong>
+                </div>
+              </div>
+            </section>
+            <div className="panel">
+              <div className="panel-head">
+                <h3>Public tickets</h3>
+              </div>
+              <div className="ticket-list">
+                {tickets.map((t) => (
+                  <Link
+                    className="ticket"
+                    to="/tickets/$ticketId"
+                    params={{ ticketId: t.id }}
+                    key={t.id}
+                  >
+                    <span className="ticket-avatar">{t.title?.[0] ?? "T"}</span>
+                    <div className="ticket-main">
+                      <div className="ticket-line">
+                        <b>{t.title}</b>
+                        <span className={`status status-${String(t.status).toLowerCase()}`}>
+                          {t.status}
+                        </span>
+                      </div>
+                      <small>
+                        {t.selectionCount} selections • {Number(t.totalOdds).toFixed(2)} odds
+                      </small>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="empty">
+            <b>Creator hajapatikana.</b>
+            <Link to="/community">Rudi community</Link>
+          </div>
+        )}
+      </div>
+    </AppShell>
+  );
 }

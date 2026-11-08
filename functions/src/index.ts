@@ -3,11 +3,76 @@ import { getAuth } from "firebase-admin/auth";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
-import { defineSecret } from "firebase-functions/params";
+import { onDocumentCreated } from "firebase-functions/v2/firestore";
 initializeApp();
 const db = getFirestore();
 const API_BASE = process.env.SPORTS_API_BASE_URL ?? "https://v3.football.api-sports.io";
-const SPORTS_API_KEY = defineSecret("SPORTS_API_KEY");
+async function createCommunityNotification(
+  userId: string,
+  type: string,
+  actorId: string,
+  message: string,
+  referenceId: string,
+) {
+  if (!userId || userId === actorId) return;
+  await db.collection("notifications").add({
+    userId,
+    type,
+    actorId,
+    message,
+    referenceId,
+    read: false,
+    createdAt: FieldValue.serverTimestamp(),
+  });
+}
+export const notifyTicketLike = onDocumentCreated(
+  { document: "likes/{likeId}", region: "europe-west1" },
+  async (event) => {
+    const like = event.data?.data();
+    if (!like) return;
+    const ticket = await db.collection("tickets").doc(String(like.ticketId)).get();
+    const creatorId = String(ticket.data()?.creatorId ?? "");
+    await createCommunityNotification(
+      creatorId,
+      "LIKE",
+      String(like.userId),
+      "Mtu amependa tiketi yako.",
+      String(like.ticketId),
+    );
+  },
+);
+export const notifyTicketComment = onDocumentCreated(
+  { document: "comments/{commentId}", region: "europe-west1" },
+  async (event) => {
+    const comment = event.data?.data();
+    if (!comment) return;
+    const ticket = await db.collection("tickets").doc(String(comment.ticketId)).get();
+    const creatorId = String(ticket.data()?.creatorId ?? "");
+    await createCommunityNotification(
+      creatorId,
+      "COMMENT",
+      String(comment.authorId),
+      "Mtu ameacha maoni kwenye tiketi yako.",
+      String(comment.ticketId),
+    );
+  },
+);
+export const notifyNewFollower = onDocumentCreated(
+  { document: "followers/{followId}", region: "europe-west1" },
+  async (event) => {
+    const follow = event.data?.data();
+    if (!follow) return;
+    await createCommunityNotification(
+      String(follow.followingId),
+      "FOLLOW",
+      String(follow.followerId),
+      "Mtu mpya amekufuata.",
+      String(follow.followerId),
+    );
+  },
+);
+
+const API_KEY = process.env.SPORTS_API_KEY;
 type Status = "PENDING" | "WON" | "LOST" | "VOID" | "CANCELLED";
 type Match = {
   eventId: string;
@@ -26,18 +91,15 @@ type Match = {
   markets?: any[];
 };
 function assertApi() {
-  if (!SPORTS_API_KEY.value())
-    throw new Error("SPORTS_API_KEY haijawekwa kwenye Firebase Secret Manager.");
+  if (!API_KEY) throw new Error("SPORTS_API_KEY haijawekwa kwenye server.");
 }
 async function api(path: string, params: Record<string, string> = {}) {
   assertApi();
-  const savedApi = await db.collection("siteSettings").doc("main").get();
-  const baseValue = String(savedApi.data()?.sportsApiBaseUrl ?? API_BASE);
-  const base = baseValue.endsWith("/") ? baseValue : baseValue + "/";
+  const base = API_BASE.endsWith("/") ? API_BASE : API_BASE + "/";
   const url = new URL(path, base);
   Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
   const res = await fetch(url, {
-    headers: { "x-apisports-key": SPORTS_API_KEY.value(), Accept: "application/json" },
+    headers: { "x-apisports-key": API_KEY!, Accept: "application/json" },
   });
   if (!res.ok) throw new Error("Sports API HTTP " + res.status);
   const body = (await res.json()) as any;
@@ -396,19 +458,10 @@ async function runAutoTicket() {
   return { created: true, ticketId: ticketRef.id, selections: selections.length, totalOdds };
 }
 export const generateAutoTicket = onSchedule(
-  {
-    schedule: "every 30 minutes",
-    timeZone: "Africa/Dar_es_Salaam",
-    region: "europe-west1",
-    secrets: [SPORTS_API_KEY],
-  },
+  { schedule: "every 30 minutes", timeZone: "Africa/Dar_es_Salaam", region: "europe-west1" },
   async () => {
     try {
       const result = await runAutoTicket();
-      if (result.created)
-        await writeAdminActivity("SYSTEM", "automation.ticket_created", undefined, {
-          ticketId: result.ticketId,
-        });
       await db
         .collection("api_logs")
         .add({ type: "auto-ticket", ok: true, result, createdAt: FieldValue.serverTimestamp() });
@@ -426,24 +479,14 @@ export const generateAutoTicket = onSchedule(
 export const adminGenerateAutoTicket = onCall({ region: "europe-west1" }, async (request) => {
   await assertAdmin(request);
   try {
-    const result = await runAutoTicket();
-    if (result.created)
-      await writeAdminActivity(request.auth!.uid, "automation.ticket_created", undefined, {
-        ticketId: result.ticketId,
-      });
-    return result;
+    return await runAutoTicket();
   } catch (e) {
     console.error("manual auto ticket failed", e);
     throw new HttpsError("internal", "Auto ticket imeshindikana.");
   }
 });
 export const syncSports = onSchedule(
-  {
-    schedule: "every 10 minutes",
-    timeZone: "Africa/Dar_es_Salaam",
-    region: "europe-west1",
-    secrets: [SPORTS_API_KEY],
-  },
+  { schedule: "every 10 minutes", timeZone: "Africa/Dar_es_Salaam", region: "europe-west1" },
   async () => {
     const now = new Date();
     for (let i = -1; i < 3; i++) {
@@ -476,59 +519,36 @@ export const syncSports = onSchedule(
     }
   },
 );
-export const adminSync = onCall(
-  { region: "europe-west1", secrets: [SPORTS_API_KEY] },
-  async (request) => {
-    if (!request.auth) throw new HttpsError("unauthenticated", "Login required.");
-    const u = await db.collection("users").doc(request.auth.uid).get();
-    if (!["ADMIN", "SUPER_ADMIN"].includes(u.data()?.role))
-      throw new HttpsError("permission-denied", "Admin only.");
-    try {
-      const date = String(request.data?.date ?? new Date().toISOString().slice(0, 10));
-      const count = await syncDate(date);
-      const settled = await settle();
-      await writeAdminActivity(request.auth.uid, "sports.sync_completed", undefined, {
-        date,
-        count,
-        settled,
-      });
-      await db.collection("api_logs").add({
-        type: "manual-sync",
-        date,
-        count,
-        settled,
-        ok: true,
-        by: request.auth.uid,
-        createdAt: FieldValue.serverTimestamp(),
-      });
-      return { ok: true, count, settled };
-    } catch (e) {
-      await db.collection("api_logs").add({
-        type: "manual-sync",
-        ok: false,
-        error: String(e),
-        by: request.auth.uid,
-        createdAt: FieldValue.serverTimestamp(),
-      });
-      throw new HttpsError("internal", "Sports synchronization failed.");
-    }
-  },
-);
-
-async function writeAdminActivity(
-  actorUid: string,
-  action: string,
-  targetUid?: string,
-  details?: Record<string, unknown>,
-) {
-  await db.collection("adminActivityLogs").add({
-    actorUid,
-    action,
-    ...(targetUid ? { targetUid } : {}),
-    ...(details ? { details } : {}),
-    createdAt: FieldValue.serverTimestamp(),
-  });
-}
+export const adminSync = onCall({ region: "europe-west1" }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Login required.");
+  const u = await db.collection("users").doc(request.auth.uid).get();
+  if (!["ADMIN", "SUPER_ADMIN"].includes(u.data()?.role))
+    throw new HttpsError("permission-denied", "Admin only.");
+  try {
+    const date = String(request.data?.date ?? new Date().toISOString().slice(0, 10));
+    const count = await syncDate(date);
+    const settled = await settle();
+    await db.collection("api_logs").add({
+      type: "manual-sync",
+      date,
+      count,
+      settled,
+      ok: true,
+      by: request.auth.uid,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    return { ok: true, count, settled };
+  } catch (e) {
+    await db.collection("api_logs").add({
+      type: "manual-sync",
+      ok: false,
+      error: String(e),
+      by: request.auth.uid,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    throw new HttpsError("internal", "Sports synchronization failed.");
+  }
+});
 
 function assertPrivileged(request: any) {
   if (!request.auth) throw new HttpsError("unauthenticated", "Login required.");
@@ -551,7 +571,6 @@ export const adminResetUserPassword = onCall({ region: "europe-west1" }, async (
   if (target.data()?.role === "SUPER_ADMIN" && auth.uid !== uid)
     throw new HttpsError("permission-denied", "SUPER_ADMIN hawezi kubadilishwa na admin mwingine.");
   await getAuth().updateUser(uid, { password });
-  await writeAdminActivity(auth.uid, "user.password_reset", uid);
   await db
     .collection("passwordResets")
     .add({ targetUid: uid, actorUid: auth.uid, createdAt: FieldValue.serverTimestamp() });
@@ -633,6 +652,27 @@ export const adminDashboard = onCall({ region: "europe-west1" }, async (request)
   };
 });
 
+export const adminSetTipsterVerification = onCall({ region: "europe-west1" }, async (request) => {
+  await assertAdmin(request);
+  const uid = String(request.data?.uid ?? "");
+  const verified = request.data?.verified;
+  if (!uid || typeof verified !== "boolean")
+    throw new HttpsError("invalid-argument", "UID na verification status vinahitajika.");
+  const target = await db.collection("users").doc(uid).get();
+  if (!target.exists) throw new HttpsError("not-found", "User profile haipo.");
+  await db
+    .collection("publicProfiles")
+    .doc(uid)
+    .set({ accountVerified: verified, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  await db.collection("adminAudit").add({
+    type: "tipster-verification",
+    targetUid: uid,
+    verified,
+    actorUid: request.auth!.uid,
+    createdAt: FieldValue.serverTimestamp(),
+  });
+  return { ok: true, verified };
+});
 export const adminSetUserStatus = onCall({ region: "europe-west1" }, async (request) => {
   await assertAdmin(request);
   const uid = String(request.data?.uid ?? "");
@@ -648,7 +688,6 @@ export const adminSetUserStatus = onCall({ region: "europe-west1" }, async (requ
     .collection("users")
     .doc(uid)
     .set({ disabled, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
-  await writeAdminActivity(request.auth!.uid, disabled ? "user.disabled" : "user.enabled", uid);
   return { ok: true, disabled };
 });
 
@@ -668,160 +707,8 @@ export const adminSetUserRole = onCall({ region: "europe-west1" }, async (reques
     .collection("users")
     .doc(uid)
     .set({ role, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
-  await writeAdminActivity(
-    request.auth!.uid,
-    role === "ADMIN" ? "user.admin_granted" : "user.admin_revoked",
-    uid,
-  );
   return { ok: true, role };
 });
-
-type SiteSettingsInput = {
-  siteName: string;
-  logoUrl: string;
-  supportWhatsApp: string;
-  terms: string;
-  notifications: { ticketUpdates: boolean; results: boolean; announcements: boolean };
-  announcement: {
-    enabled: boolean;
-    title: string;
-    message: string;
-    tone: "info" | "success" | "warning";
-  };
-  sportsApi: { configured?: boolean; baseUrl: string };
-};
-const defaultSiteSettings: SiteSettingsInput = {
-  siteName: "WAZEE WA BETTING TZ",
-  logoUrl: "",
-  supportWhatsApp: "+255698232313",
-  terms: "",
-  notifications: { ticketUpdates: true, results: true, announcements: true },
-  announcement: { enabled: false, title: "", message: "", tone: "info" },
-  sportsApi: { baseUrl: "https://v3.football.api-sports.io" },
-};
-export const adminGetSiteSettings = onCall(
-  { region: "europe-west1", secrets: [SPORTS_API_KEY] },
-  async (request) => {
-    await assertAdmin(request);
-    const snap = await db.collection("siteSettings").doc("main").get();
-    const raw = snap.data() ?? {};
-    const value = { ...defaultSiteSettings, ...raw };
-    return {
-      siteName: String(value.siteName),
-      logoUrl: String(value.logoUrl),
-      supportWhatsApp: String(value.supportWhatsApp),
-      terms: String(value.terms),
-      notifications: { ...defaultSiteSettings.notifications, ...(value.notifications ?? {}) },
-      announcement: { ...defaultSiteSettings.announcement, ...(value.announcement ?? {}) },
-      sportsApi: {
-        configured: Boolean(SPORTS_API_KEY.value()),
-        baseUrl: String(
-          raw.sportsApiBaseUrl ??
-            process.env.SPORTS_API_BASE_URL ??
-            defaultSiteSettings.sportsApi.baseUrl,
-        ),
-      },
-    };
-  },
-);
-export const adminSaveSiteSettings = onCall(
-  { region: "europe-west1", secrets: [SPORTS_API_KEY] },
-  async (request) => {
-    await assertAdmin(request);
-    const raw = (request.data ?? {}) as Partial<SiteSettingsInput>;
-    const siteName = String(raw.siteName ?? "")
-      .trim()
-      .slice(0, 80);
-    const logoUrl = String(raw.logoUrl ?? "").trim();
-    const supportWhatsApp = String(raw.supportWhatsApp ?? "").trim();
-    const terms = String(raw.terms ?? "").slice(0, 20000);
-    const baseUrl = String(raw.sportsApi?.baseUrl ?? "").trim();
-    if (!siteName || !/^\+?255\d{9}$/.test(supportWhatsApp.replace(/[\s()-]/g, "")))
-      throw new HttpsError(
-        "invalid-argument",
-        "Jina la website na namba sahihi ya WhatsApp vinahitajika.",
-      );
-    if (logoUrl && (!logoUrl.startsWith("https://") || logoUrl.length > 2048))
-      throw new HttpsError("invalid-argument", "Logo lazima iwe URL salama ya HTTPS.");
-    let parsedBase: URL;
-    try {
-      parsedBase = new URL(baseUrl);
-    } catch {
-      throw new HttpsError("invalid-argument", "Sports API URL si sahihi.");
-    }
-    if (parsedBase.protocol !== "https:" || parsedBase.username || parsedBase.password)
-      throw new HttpsError(
-        "invalid-argument",
-        "Sports API itumie HTTPS bila credentials kwenye URL.",
-      );
-    const notifications = {
-      ticketUpdates: Boolean(raw.notifications?.ticketUpdates),
-      results: Boolean(raw.notifications?.results),
-      announcements: Boolean(raw.notifications?.announcements),
-    };
-    const tone = ["info", "success", "warning"].includes(String(raw.announcement?.tone))
-      ? raw.announcement!.tone
-      : "info";
-    const announcement = {
-      enabled: Boolean(raw.announcement?.enabled),
-      title: String(raw.announcement?.title ?? "")
-        .trim()
-        .slice(0, 120),
-      message: String(raw.announcement?.message ?? "")
-        .trim()
-        .slice(0, 1000),
-      tone,
-    };
-    const settings = {
-      siteName,
-      logoUrl,
-      supportWhatsApp,
-      terms,
-      notifications,
-      announcement,
-      sportsApiBaseUrl: parsedBase.toString(),
-    };
-    const updateFields = {
-      ...settings,
-      updatedAt: FieldValue.serverTimestamp(),
-      updatedBy: request.auth!.uid,
-    };
-    await db.collection("siteSettings").doc("main").set(updateFields, { merge: true });
-    await db.collection("publicSiteContent").doc("main").set(
-      {
-        siteName,
-        logoUrl,
-        supportWhatsApp,
-        terms,
-        announcement,
-        updatedAt: FieldValue.serverTimestamp(),
-      },
-      { merge: true },
-    );
-    await writeAdminActivity(request.auth!.uid, "settings.updated", undefined, {
-      changedFields: [
-        "siteName",
-        "logoUrl",
-        "supportWhatsApp",
-        "terms",
-        "notifications",
-        "announcement",
-        "sportsApiBaseUrl",
-      ],
-      announcementEnabled: announcement.enabled,
-    });
-    return {
-      ok: true,
-      settings: {
-        ...settings,
-        sportsApi: {
-          baseUrl: settings.sportsApiBaseUrl,
-          configured: Boolean(SPORTS_API_KEY.value()),
-        },
-      },
-    };
-  },
-);
 
 export const adminMatchData = onCall({ region: "europe-west1" }, async (request) => {
   await assertAdmin(request);
@@ -866,9 +753,6 @@ export const adminSetAutoConfig = onCall({ region: "europe-west1" }, async (requ
   )
     throw new HttpsError("invalid-argument", "Kiwango cha chini hakiwezi kuzidi cha juu.");
   await db.collection("automation").doc("config").set(config, { merge: true });
-  await writeAdminActivity(request.auth!.uid, "automation.config_updated", undefined, {
-    enabled: config.enabled,
-  });
   await db.collection("api_logs").add({
     type: "auto-ticket-config",
     ok: true,
@@ -877,55 +761,6 @@ export const adminSetAutoConfig = onCall({ region: "europe-west1" }, async (requ
     createdAt: FieldValue.serverTimestamp(),
   });
   return { ok: true, config };
-});
-
-export const adminUpdateTicket = onCall({ region: "europe-west1" }, async (request) => {
-  await assertAdmin(request);
-  const ticketId = String(request.data?.ticketId ?? "");
-  const action = String(request.data?.action ?? "");
-  if (!ticketId || !["visibility", "title"].includes(action))
-    throw new HttpsError("invalid-argument", "Ticket na kitendo halali vinahitajika.");
-  const ref = db.collection("tickets").doc(ticketId);
-  const snap = await ref.get();
-  if (!snap.exists) throw new HttpsError("not-found", "Tiketi haipo.");
-  if (action === "visibility") {
-    const visibility = request.data?.visibility === "PUBLIC" ? "PUBLIC" : "PRIVATE";
-    await ref.update({ visibility, updatedAt: FieldValue.serverTimestamp() });
-    await writeAdminActivity(request.auth!.uid, "ticket.visibility_changed", undefined, {
-      ticketId,
-      visibility,
-    });
-    return { ok: true, visibility };
-  }
-  const title = String(request.data?.title ?? "")
-    .trim()
-    .slice(0, 120);
-  if (!title) throw new HttpsError("invalid-argument", "Jina la tiketi linahitajika.");
-  await ref.update({ title, updatedAt: FieldValue.serverTimestamp() });
-  await writeAdminActivity(request.auth!.uid, "ticket.updated", undefined, { ticketId });
-  return { ok: true, title };
-});
-export const adminDeleteTicket = onCall({ region: "europe-west1" }, async (request) => {
-  await assertAdmin(request);
-  const ticketId = String(request.data?.ticketId ?? "");
-  if (!ticketId) throw new HttpsError("invalid-argument", "Ticket ID inahitajika.");
-  const ref = db.collection("tickets").doc(ticketId);
-  const snap = await ref.get();
-  if (!snap.exists) throw new HttpsError("not-found", "Tiketi haipo.");
-  const selections = await ref.collection("selections").get();
-  const batch = db.batch();
-  selections.docs.forEach((item) => batch.delete(item.ref));
-  batch.delete(ref);
-  await batch.commit();
-  await writeAdminActivity(request.auth!.uid, "ticket.deleted", undefined, { ticketId });
-  return { ok: true };
-});
-export const adminAuditEvent = onCall({ region: "europe-west1" }, async (request) => {
-  await assertAdmin(request);
-  const action = String(request.data?.action ?? "");
-  if (action !== "report.exported") throw new HttpsError("invalid-argument", "Tukio haliruhusiwi.");
-  await writeAdminActivity(request.auth!.uid, action);
-  return { ok: true };
 });
 
 export const adminCreateTicket = onCall({ region: "europe-west1" }, async (request) => {
@@ -1013,12 +848,6 @@ export const adminCreateTicket = onCall({ region: "europe-west1" }, async (reque
     }),
   );
   await batch.commit();
-  await writeAdminActivity(
-    request.auth!.uid,
-    ticketId ? "ticket.updated" : "ticket.created",
-    undefined,
-    { ticketId: ticketRef.id },
-  );
   await db.collection("api_logs").add({
     type: ticketId ? "admin-ticket-update" : "admin-ticket-create",
     ok: true,

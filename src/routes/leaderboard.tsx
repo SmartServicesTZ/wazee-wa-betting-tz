@@ -1,1 +1,75 @@
-import { createFileRoute, Link } from "@tanstack/react-router"; import { collection,getDocs,limit,orderBy,query } from "firebase/firestore"; import { useEffect,useState } from "react"; import { Trophy } from "lucide-react"; import { AppShell } from "../components/app-shell"; import { PredictorBadge } from "../components/predictor-badge"; import { firestore,subscribeToAuth } from "../lib/firebase"; export const Route=createFileRoute("/leaderboard")({component:Leaderboard}); function Leaderboard(){const[user,setUser]=useState<any>(null);const[rows,setRows]=useState<any[]>([]);useEffect(()=>subscribeToAuth(setUser),[]);useEffect(()=>{getDocs(query(collection(firestore,"publicProfiles"),orderBy("winRate","desc"),limit(50))).then(s=>setRows(s.docs.map(d=>({id:d.id,...d.data()})).filter(d=>Number(d.settledTicketCount??0)>=10))).catch(()=>setRows([]))},[]);return <AppShell user={user}><div className="page narrow"><div className="page-title"><div><span className="eyebrow">RANKINGS</span><h1>Leaderboard</h1><p>Inategemea tickets zilizofanyiwa settlement; hakuna statistic ya kujibadili.</p></div></div><div className="panel">{rows.length?<div className="leader-list">{rows.map((r,i)=><Link className="leader-row" to="/users/$username" params={{username:r.username}} key={r.id}><b>#{i+1}</b><span className="ticket-avatar">{r.displayName?.[0]??"U"}</span><div><strong>{r.displayName} <PredictorBadge compact accountVerified={r.accountVerified} winRate={r.winRate} settledTicketCount={r.settledTicketCount}/></strong><small>@{r.username} • {r.settledTicketCount??0} settled tickets</small></div><em>{Number(r.winRate??0).toFixed(2)}%</em></Link>)}</div>:<div className="empty"><Trophy size={27}/><b>Leaderboard bado haina settled creators.</b><span>Itajaa automatically baada ya real results kuingia.</span></div>}</div></div></AppShell>}
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { collection, getDocs, limit, orderBy, query } from "firebase/firestore";
+import { useEffect, useState } from "react";
+import { Trophy } from "lucide-react";
+import { AppShell } from "../components/app-shell";
+import { PredictorBadge } from "../components/predictor-badge";
+import { firestore, subscribeToAuth } from "../lib/firebase";
+export const Route = createFileRoute("/leaderboard")({ component: Leaderboard });
+function Leaderboard() {
+  const [user, setUser] = useState<any>(null);
+  const [rows, setRows] = useState<any[]>([]);
+  useEffect(() => subscribeToAuth(setUser), []);
+  useEffect(() => {
+    getDocs(query(collection(firestore, "publicProfiles"), orderBy("winRate", "desc"), limit(50)))
+      .then((s) =>
+        setRows(
+          s.docs
+            .map((d) => ({ id: d.id, ...d.data() }))
+            .filter((d) => Number(d.settledTicketCount ?? 0) >= 10),
+        ),
+      )
+      .catch(() => setRows([]));
+  }, []);
+  return (
+    <AppShell user={user}>
+      <div className="page narrow">
+        <div className="page-title">
+          <div>
+            <span className="eyebrow">RANKINGS</span>
+            <h1>Leaderboard</h1>
+            <p>Inategemea tickets zilizofanyiwa settlement; hakuna statistic ya kujibadili.</p>
+          </div>
+        </div>
+        <div className="panel">
+          {rows.length ? (
+            <div className="leader-list">
+              {rows.map((r, i) => (
+                <Link
+                  className="leader-row"
+                  to="/users/$username"
+                  params={{ username: r.username }}
+                  key={r.id}
+                >
+                  <b>#{i + 1}</b>
+                  <span className="ticket-avatar">{r.displayName?.[0] ?? "U"}</span>
+                  <div>
+                    <strong>
+                      {r.displayName}{" "}
+                      <PredictorBadge
+                        compact
+                        accountVerified={r.accountVerified}
+                        winRate={r.winRate}
+                        settledTicketCount={r.settledTicketCount}
+                      />
+                    </strong>
+                    <small>
+                      @{r.username} • {r.settledTicketCount ?? 0} settled tickets
+                    </small>
+                  </div>
+                  <em>{Number(r.winRate ?? 0).toFixed(2)}%</em>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <div className="empty">
+              <Trophy size={27} />
+              <b>Leaderboard bado haina settled creators.</b>
+              <span>Itajaa automatically baada ya real results kuingia.</span>
+            </div>
+          )}
+        </div>
+      </div>
+    </AppShell>
+  );
+}

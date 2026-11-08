@@ -11,9 +11,13 @@ import {
   type User,
 } from "firebase/auth";
 import {
+  collection,
   doc,
   getDoc,
+  getDocs,
   getFirestore,
+  limit,
+  query,
   serverTimestamp,
   setDoc,
   runTransaction,
@@ -118,6 +122,24 @@ export async function registerWithPhone(
       if (existingUsername.exists())
         throw new Error("Namba hii tayari imetumika. Wasiliana na msaada WhatsApp.");
       tx.set(usernameRef, { uid: accountUser.uid, createdAt: serverTimestamp() });
+      tx.set(doc(firestore, "publicProfiles", accountUser.uid), {
+        uid: accountUser.uid,
+        username,
+        displayName,
+        photoURL: null,
+        accountVerified: false,
+        ticketCount: 0,
+        settledTicketCount: 0,
+        wonCount: 0,
+        lostCount: 0,
+        pendingCount: 0,
+        winRate: 0,
+        selectionWonCount: 0,
+        selectionLostCount: 0,
+        selectionWinRate: 0,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
       tx.set(doc(firestore, "users", accountUser.uid), {
         uid: accountUser.uid,
         email: accountUser.email,
@@ -127,6 +149,15 @@ export async function registerWithPhone(
         phone,
         displayName,
         role: "USER",
+        // New registrations are system-approved immediately; admin approval is not required.
+        status: "ACTIVE",
+        accountStatus: "ACTIVE",
+        approvalStatus: "APPROVED",
+        approved: true,
+        isApproved: true,
+        verified: true,
+        isVerified: true,
+        disabled: false,
         followersCount: 0,
         followingCount: 0,
         ticketCount: 0,
@@ -202,6 +233,13 @@ export async function runAdminSync(date?: string) {
   >(functions, "adminSync");
   return (await callable(date ? { date } : {})).data;
 }
+export async function adminSetTipsterVerification(uid: string, verified: boolean) {
+  const callable = httpsCallable<
+    { uid: string; verified: boolean },
+    { ok: boolean; verified: boolean }
+  >(functions, "adminSetTipsterVerification");
+  return (await callable({ uid, verified })).data;
+}
 export async function adminResetUserPassword(uid: string, password: string) {
   const callable = httpsCallable<{ uid: string; password: string }, { ok: boolean }>(
     functions,
@@ -238,12 +276,69 @@ export type AdminDashboardData = {
     revenue: number;
   };
 };
-export async function adminDashboard() {
-  const callable = httpsCallable<Record<string, never>, AdminDashboardData>(
-    functions,
-    "adminDashboard",
-  );
-  return (await callable({})).data;
+export async function adminDashboard(): Promise<AdminDashboardData> {
+  // Read the actual Firestore collections directly so the dashboard still loads
+  // when optional callable dashboard functions have not yet been deployed.
+  const [usersSnap, ticketsSnap, matchesSnap, paymentsSnap] = await Promise.all([
+    getDocs(query(collection(firestore, "users"), limit(1000))),
+    getDocs(query(collection(firestore, "tickets"), limit(1000))),
+    getDocs(query(collection(firestore, "matches"), limit(1000))),
+    getDocs(query(collection(firestore, "payments"), limit(500))),
+  ]);
+  const users = usersSnap.docs.map((item) => {
+    const value = item.data();
+    const created =
+      value.createdAt && typeof value.createdAt === "object" && "toDate" in value.createdAt
+        ? (value.createdAt as { toDate: () => Date }).toDate().toISOString()
+        : value.createdAt
+          ? String(value.createdAt)
+          : undefined;
+    return {
+      uid: item.id,
+      displayName: String(value.displayName ?? ""),
+      firstName: String(value.firstName ?? ""),
+      lastName: String(value.lastName ?? ""),
+      username: String(value.username ?? ""),
+      phone: String(value.phone ?? ""),
+      role: (value.role === "ADMIN" || value.role === "SUPER_ADMIN"
+        ? value.role
+        : "USER") as AdminUser["role"],
+      disabled: value.disabled === true,
+      createdAt: created,
+      ticketCount: Number(value.ticketCount ?? 0),
+      winRate: Number(value.winRate ?? 0),
+    };
+  });
+  const tickets = ticketsSnap.docs.map((item) => item.data());
+  const payments = paymentsSnap.docs.map((item) => item.data());
+  const paidRevenue = payments.reduce((total, payment) => {
+    const status = String(payment.status ?? "").toUpperCase();
+    return status === "PAID" || status === "SUCCESS" || status === "COMPLETED"
+      ? total + Number(payment.amount ?? 0)
+      : total;
+  }, 0);
+  const now = new Date();
+  const registrationTrend = Array.from({ length: 14 }, (_, index) => {
+    const day = new Date(now);
+    day.setDate(now.getDate() - (13 - index));
+    const key = day.toISOString().slice(0, 10);
+    const count = users.filter((item) => item.createdAt?.slice(0, 10) === key).length;
+    return { label: day.toLocaleDateString("sw-TZ", { day: "2-digit", month: "short" }), count };
+  });
+  return {
+    users,
+    registrationTrend,
+    metrics: {
+      users: users.length,
+      activeUsers: users.filter((item) => !item.disabled).length,
+      tickets: tickets.length,
+      won: tickets.filter((item) => item.status === "WON").length,
+      lost: tickets.filter((item) => item.status === "LOST").length,
+      pending: tickets.filter((item) => item.status === "PENDING").length,
+      matches: matchesSnap.size,
+      revenue: paidRevenue,
+    },
+  };
 }
 export async function adminSetUserStatus(uid: string, disabled: boolean) {
   const callable = httpsCallable<
@@ -266,6 +361,8 @@ export type AdminMatch = {
   leagueName?: string;
   homeTeamName?: string;
   awayTeamName?: string;
+  homeTeamLogo?: string | null;
+  awayTeamLogo?: string | null;
   kickoffAt?: string;
   status?: string;
   homeScore?: number | null;
@@ -289,40 +386,37 @@ export type AutoConfig = {
   leagueIds?: string[];
   markets?: string[];
 };
-export type AdminSiteSettings = {
-  siteName: string;
-  logoUrl: string;
-  supportWhatsApp: string;
-  terms: string;
-  notifications: { ticketUpdates: boolean; results: boolean; announcements: boolean };
-  announcement: {
-    enabled: boolean;
-    title: string;
-    message: string;
-    tone: "info" | "success" | "warning";
+export async function adminMatchData(): Promise<{
+  matches: AdminMatch[];
+  autoConfig: AutoConfig;
+  logs: Array<Record<string, unknown>>;
+}> {
+  const defaults: AutoConfig = {
+    enabled: false,
+    minSelections: 2,
+    maxSelections: 5,
+    minOddsPerSelection: 1.1,
+    maxOddsPerSelection: 1.65,
+    minTotalOdds: 1,
+    maxTotalOdds: 12,
+    risk: "LOW",
   };
-  sportsApi: { configured: boolean; baseUrl: string };
-};
-export async function adminGetSiteSettings() {
-  const callable = httpsCallable<Record<string, never>, AdminSiteSettings>(
-    functions,
-    "adminGetSiteSettings",
-  );
-  return (await callable({})).data;
-}
-export async function adminSaveSiteSettings(settings: AdminSiteSettings) {
-  const callable = httpsCallable<AdminSiteSettings, { ok: boolean; settings: AdminSiteSettings }>(
-    functions,
-    "adminSaveSiteSettings",
-  );
-  return (await callable(settings)).data;
-}
-export async function adminMatchData() {
-  const callable = httpsCallable<
-    Record<string, never>,
-    { matches: AdminMatch[]; autoConfig: AutoConfig; logs: RowLike[] }
-  >(functions, "adminMatchData");
-  return (await callable({})).data;
+  const [matchesSnap, logsSnap] = await Promise.all([
+    getDocs(query(collection(firestore, "matches"), limit(300))),
+    getDocs(query(collection(firestore, "api_logs"), limit(50))).catch(() => null),
+  ]);
+  let autoConfig = defaults;
+  try {
+    const configSnap = await getDoc(doc(firestore, "automation", "config"));
+    if (configSnap.exists()) autoConfig = { ...defaults, ...configSnap.data() } as AutoConfig;
+  } catch {
+    // ADMIN (non-SUPER_ADMIN) may not have access to private automation settings.
+  }
+  return {
+    matches: matchesSnap.docs.map((item) => ({ id: item.id, ...item.data() }) as AdminMatch),
+    autoConfig,
+    logs: logsSnap?.docs.map((item) => ({ id: item.id, ...item.data() })) ?? [],
+  };
 }
 export async function adminSetAutoConfig(config: AutoConfig) {
   const callable = httpsCallable<AutoConfig, { ok: boolean; config: AutoConfig }>(
@@ -335,36 +429,22 @@ export async function adminGenerateAutoTicket() {
   const callable = httpsCallable<
     Record<string, never>,
     {
-      created: boolean;
+      created?: boolean;
       reason?: string;
       ticketId?: string;
       selections?: number;
       totalOdds?: number;
+      results?: {
+        target: number;
+        created: boolean;
+        reason?: string;
+        ticketId?: string;
+        selections?: number;
+        totalOdds?: number;
+      }[];
     }
   >(functions, "adminGenerateAutoTicket");
   return (await callable({})).data;
-}
-export async function adminUpdateTicket(
-  ticketId: string,
-  action: "visibility" | "title",
-  payload: { visibility?: "PUBLIC" | "PRIVATE"; title?: string },
-) {
-  const callable = httpsCallable<
-    { ticketId: string; action: string; visibility?: string; title?: string },
-    { ok: boolean; visibility?: string; title?: string }
-  >(functions, "adminUpdateTicket");
-  return (await callable({ ticketId, action, ...payload })).data;
-}
-export async function adminDeleteTicket(ticketId: string) {
-  const callable = httpsCallable<{ ticketId: string }, { ok: boolean }>(
-    functions,
-    "adminDeleteTicket",
-  );
-  return (await callable({ ticketId })).data;
-}
-export async function adminAuditEvent(action: "report.exported") {
-  const callable = httpsCallable<{ action: string }, { ok: boolean }>(functions, "adminAuditEvent");
-  return (await callable({ action })).data;
 }
 export async function adminCreateTicket(input: {
   ticketId?: string;
