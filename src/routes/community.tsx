@@ -17,7 +17,7 @@ function Community() {
   useEffect(() => subscribeToAuth(setUser), []);
   useEffect(() => {
     let active = true;
-    listPublicTickets(50)
+    listPublicTickets(20)
       .then((rows) => {
         if (active) setTickets(rows);
       })
@@ -58,7 +58,9 @@ function Community() {
               </button>
             </div>
           ) : tickets.length ? (
-            tickets.map((ticket) => <TicketFeedCard key={ticket.id} ticket={ticket} />)
+            tickets.map((ticket) => (
+              <TicketFeedCard key={ticket.id} ticket={ticket} currentUser={user} />
+            ))
           ) : (
             <div className="panel empty">
               <b>Bado hakuna mikeka ya umma.</b>

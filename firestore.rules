@@ -30,6 +30,38 @@ service cloud.firestore {
   match /usernames/{username}{allow read:if true;allow create:if signedIn()&&request.resource.data.uid==request.auth.uid&&!exists(/databases/$(database)/documents/usernames/$(username));allow update:if false;allow delete:if isSuperAdmin();}
   match /matches/{id}{allow read:if true;allow write:if isAdmin();} match /sports/{id}{allow read:if true;allow write:if isAdmin();} match /leagues/{id}{allow read:if true;allow write:if isAdmin();} match /teams/{id}{allow read:if true;allow write:if isAdmin();} match /results/{id}{allow read:if true;allow write:if isAdmin();} match /api_logs/{id}{allow read:if isAdmin();allow write:if false;}
   match /tickets/{id}{allow get:if resource.data.visibility=='PUBLIC'||(signedIn()&&resource.data.creatorId==request.auth.uid)||isAdmin();allow list:if resource.data.visibility=='PUBLIC'||(signedIn()&&resource.data.creatorId==request.auth.uid)||isAdmin();allow create:if signedIn()&&request.resource.data.creatorId==request.auth.uid&&request.resource.data.status=='PENDING'&&request.resource.data.totalOdds>0;allow update:if isAdmin();allow delete:if isAdmin();match /selections/{sid}{allow read:if get(/databases/$(database)/documents/tickets/$(id)).data.visibility=='PUBLIC'||isAdmin()||(signedIn()&&get(/databases/$(database)/documents/tickets/$(id)).data.creatorId==request.auth.uid);allow create:if signedIn()&&get(/databases/$(database)/documents/tickets/$(id)).data.creatorId==request.auth.uid&&request.resource.data.status=='PENDING'&&request.resource.data.kickoffAt>request.time;allow update,delete:if isAdmin();}}
-  match /likes/{id}{allow read:if true;allow create:if signedIn()&&request.resource.data.userId==request.auth.uid;allow delete:if signedIn()&&resource.data.userId==request.auth.uid;allow update:if false;} match /comments/{id}{allow read:if true;allow create:if signedIn()&&request.resource.data.authorId==request.auth.uid;allow update,delete:if isAdmin()||(signedIn()&&resource.data.authorId==request.auth.uid);} match /savedTickets/{id}{allow read:if signedIn()&&resource.data.userId==request.auth.uid;allow create:if signedIn()&&request.resource.data.userId==request.auth.uid;allow delete:if signedIn()&&resource.data.userId==request.auth.uid;allow update:if false;} match /followers/{id}{allow read:if true;allow create:if signedIn()&&request.resource.data.followerId==request.auth.uid&&request.resource.data.followingId!=request.auth.uid;allow delete:if signedIn()&&resource.data.followerId==request.auth.uid;allow update:if false;} match /reports/{id}{allow create:if signedIn()&&request.resource.data.reporterId==request.auth.uid;allow read,update,delete:if isAdmin();} match /notifications/{id}{allow read,update:if signedIn()&&resource.data.userId==request.auth.uid;allow create,delete:if false;} match /payments/{id}{allow read:if isAdmin()||(signedIn()&&resource.data.userId==request.auth.uid);allow write:if isAdmin();} match /subscriptions/{id}{allow read:if isAdmin()||(signedIn()&&resource.data.userId==request.auth.uid);allow write:if isAdmin();}
+  match /likes/{id} {
+   allow read: if true;
+   allow create: if signedIn()
+    && request.resource.data.keys().hasAll(['ticketId','userId','createdAt'])
+    && request.resource.data.keys().hasOnly(['ticketId','userId','createdAt'])
+    && request.resource.data.userId==request.auth.uid
+    && request.resource.data.ticketId is string
+    && id==request.resource.data.ticketId+'_'+request.auth.uid
+    && request.resource.data.createdAt==request.time
+    && exists(/databases/$(database)/documents/tickets/$(request.resource.data.ticketId))
+    && get(/databases/$(database)/documents/tickets/$(request.resource.data.ticketId)).data.visibility=='PUBLIC';
+   allow delete: if signedIn()&&resource.data.userId==request.auth.uid;
+   allow update: if false;
+  }
+  match /comments/{id} {
+   allow read: if true;
+   allow create: if signedIn()
+    && request.resource.data.keys().hasAll(['ticketId','authorId','authorName','text','createdAt'])
+    && request.resource.data.keys().hasOnly(['ticketId','authorId','authorName','text','createdAt'])
+    && request.resource.data.authorId==request.auth.uid
+    && request.resource.data.ticketId is string
+    && request.resource.data.authorName is string
+    && request.resource.data.authorName.size()>0
+    && request.resource.data.authorName.size()<=80
+    && request.resource.data.text is string
+    && request.resource.data.text.size()>0
+    && request.resource.data.text.size()<=1000
+    && request.resource.data.createdAt==request.time
+    && exists(/databases/$(database)/documents/tickets/$(request.resource.data.ticketId))
+    && get(/databases/$(database)/documents/tickets/$(request.resource.data.ticketId)).data.visibility=='PUBLIC';
+   allow update,delete: if isAdmin()||(signedIn()&&resource.data.authorId==request.auth.uid);
+  }
+  match /savedTickets/{id}{allow read:if signedIn()&&resource.data.userId==request.auth.uid;allow create:if signedIn()&&request.resource.data.userId==request.auth.uid;allow delete:if signedIn()&&resource.data.userId==request.auth.uid;allow update:if false;} match /followers/{id}{allow read:if true;allow create:if signedIn()&&request.resource.data.followerId==request.auth.uid&&request.resource.data.followingId!=request.auth.uid;allow delete:if signedIn()&&resource.data.followerId==request.auth.uid;allow update:if false;} match /reports/{id}{allow create:if signedIn()&&request.resource.data.reporterId==request.auth.uid;allow read,update,delete:if isAdmin();} match /notifications/{id}{allow read,update:if signedIn()&&resource.data.userId==request.auth.uid;allow create,delete:if false;} match /payments/{id}{allow read:if isAdmin()||(signedIn()&&resource.data.userId==request.auth.uid);allow write:if isAdmin();} match /subscriptions/{id}{allow read:if isAdmin()||(signedIn()&&resource.data.userId==request.auth.uid);allow write:if isAdmin();}
   match /{document=**}{allow read,write:if isSuperAdmin();}
  }}

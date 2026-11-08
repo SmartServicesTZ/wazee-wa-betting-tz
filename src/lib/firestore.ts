@@ -4,6 +4,7 @@ import {
   deleteDoc,
   doc,
   getDoc,
+  getCountFromServer,
   getDocs,
   limit,
   orderBy,
@@ -48,6 +49,15 @@ export type PublicTicket = {
   totalOdds: number;
   status: string;
   selectionCount: number;
+  createdAt?: unknown;
+};
+
+export type TicketComment = {
+  id: string;
+  ticketId: string;
+  authorId: string;
+  authorName: string;
+  text: string;
   createdAt?: unknown;
 };
 
@@ -135,16 +145,19 @@ export async function createTicket(input: {
 }
 
 export async function listPublicTickets(max = 20) {
+  const candidateLimit = Math.min(500, Math.max(max, max * 3));
   const snapshot = await getDocs(
     query(
       collection(firestore, "tickets"),
       where("visibility", "==", "PUBLIC"),
-      orderBy("createdAt", "desc"),
-      limit(max),
+      limit(candidateLimit),
     ),
   );
+  const newest = [...snapshot.docs]
+    .sort((a, b) => timestampMillis(b.data().createdAt) - timestampMillis(a.data().createdAt))
+    .slice(0, max);
   return Promise.all(
-    snapshot.docs.map(async (item) => {
+    newest.map(async (item) => {
       const data = item.data();
       const profile = await getDoc(doc(firestore, "publicProfiles", String(data.creatorId))).catch(
         () => null,
@@ -159,6 +172,13 @@ export async function listPublicTickets(max = 20) {
       } as PublicTicket;
     }),
   );
+}
+
+function timestampMillis(value: unknown) {
+  if (value instanceof Timestamp) return value.toMillis();
+  if (value instanceof Date) return value.getTime();
+  if (typeof value === "string") return Date.parse(value) || 0;
+  return 0;
 }
 
 async function listMatchesFrom(kickoffAt: string, max: number) {
@@ -299,14 +319,43 @@ export async function addComment(
   authorName: string,
   text: string,
 ) {
-  if (!text.trim()) throw new Error("Andika comment kwanza.");
+  const cleanText = text.trim();
+  const cleanAuthorName = authorName.trim().slice(0, 80);
+  if (!cleanText) throw new Error("Andika comment kwanza.");
+  if (cleanText.length > 1000) throw new Error("Comment haiwezi kuzidi herufi 1000.");
+  if (!cleanAuthorName) throw new Error("Jina la mtumiaji halijapatikana.");
   return addDoc(collection(firestore, "comments"), {
     ticketId,
     authorId,
-    authorName,
-    text: text.trim(),
+    authorName: cleanAuthorName,
+    text: cleanText,
     createdAt: serverTimestamp(),
   });
+}
+
+export async function getTicketEngagement(ticketId: string, uid?: string) {
+  const likesQuery = query(collection(firestore, "likes"), where("ticketId", "==", ticketId));
+  const commentsQuery = query(collection(firestore, "comments"), where("ticketId", "==", ticketId));
+  const [likes, comments, userLike] = await Promise.all([
+    getCountFromServer(likesQuery),
+    getCountFromServer(commentsQuery),
+    uid ? getDoc(doc(firestore, "likes", `${ticketId}_${uid}`)) : Promise.resolve(null),
+  ]);
+  return {
+    likeCount: likes.data().count,
+    commentCount: comments.data().count,
+    liked: userLike?.exists() ?? false,
+  };
+}
+
+export async function listTicketComments(ticketId: string, max = 20) {
+  const snapshot = await getDocs(
+    query(collection(firestore, "comments"), where("ticketId", "==", ticketId), limit(100)),
+  );
+  return snapshot.docs
+    .map((item) => ({ id: item.id, ...item.data() }) as TicketComment)
+    .sort((a, b) => timestampMillis(b.createdAt) - timestampMillis(a.createdAt))
+    .slice(0, max);
 }
 
 export async function followUser(followingId: string, followerId: string) {
