@@ -1,4 +1,5 @@
-name: Generate automatic ticket
+name: Generate automatic ticket (GitHub Actions)
+# Standalone Admin SDK job: it does not deploy or invoke Firebase Cloud Functions.
 
 on:
   workflow_dispatch:
@@ -22,9 +23,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Install Firebase Admin SDK
-        working-directory: functions
-        run: npm install --no-save
+      - name: Test Auto Ticket odds policy
+        run: node --test functions/scripts/auto-ticket-policy.test.mjs
+      - name: Install standalone runner dependencies
+        working-directory: functions/scripts
+        run: npm ci --ignore-scripts
       - name: Sync sports data and publish automatic ticket
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT || secrets.FIREBASE_SERVICES_ACCOUNT }}
