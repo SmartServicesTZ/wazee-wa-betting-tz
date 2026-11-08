@@ -127,7 +127,7 @@ export async function registerWithPhone(
         username,
         displayName,
         photoURL: null,
-        accountVerified: true,
+        accountVerified: false,
         ticketCount: 0,
         settledTicketCount: 0,
         wonCount: 0,
@@ -232,6 +232,13 @@ export async function runAdminSync(date?: string) {
     { ok: boolean; count: number; settled: number }
   >(functions, "adminSync");
   return (await callable(date ? { date } : {})).data;
+}
+export async function adminSetTipsterVerification(uid: string, verified: boolean) {
+  const callable = httpsCallable<
+    { uid: string; verified: boolean },
+    { ok: boolean; verified: boolean }
+  >(functions, "adminSetTipsterVerification");
+  return (await callable({ uid, verified })).data;
 }
 export async function adminResetUserPassword(uid: string, password: string) {
   const callable = httpsCallable<{ uid: string; password: string }, { ok: boolean }>(

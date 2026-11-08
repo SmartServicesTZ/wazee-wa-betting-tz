@@ -3,9 +3,75 @@ import { getAuth } from "firebase-admin/auth";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
+import { onDocumentCreated } from "firebase-functions/v2/firestore";
 initializeApp();
 const db = getFirestore();
 const API_BASE = process.env.SPORTS_API_BASE_URL ?? "https://v3.football.api-sports.io";
+async function createCommunityNotification(
+  userId: string,
+  type: string,
+  actorId: string,
+  message: string,
+  referenceId: string,
+) {
+  if (!userId || userId === actorId) return;
+  await db.collection("notifications").add({
+    userId,
+    type,
+    actorId,
+    message,
+    referenceId,
+    read: false,
+    createdAt: FieldValue.serverTimestamp(),
+  });
+}
+export const notifyTicketLike = onDocumentCreated(
+  { document: "likes/{likeId}", region: "europe-west1" },
+  async (event) => {
+    const like = event.data?.data();
+    if (!like) return;
+    const ticket = await db.collection("tickets").doc(String(like.ticketId)).get();
+    const creatorId = String(ticket.data()?.creatorId ?? "");
+    await createCommunityNotification(
+      creatorId,
+      "LIKE",
+      String(like.userId),
+      "Mtu amependa tiketi yako.",
+      String(like.ticketId),
+    );
+  },
+);
+export const notifyTicketComment = onDocumentCreated(
+  { document: "comments/{commentId}", region: "europe-west1" },
+  async (event) => {
+    const comment = event.data?.data();
+    if (!comment) return;
+    const ticket = await db.collection("tickets").doc(String(comment.ticketId)).get();
+    const creatorId = String(ticket.data()?.creatorId ?? "");
+    await createCommunityNotification(
+      creatorId,
+      "COMMENT",
+      String(comment.authorId),
+      "Mtu ameacha maoni kwenye tiketi yako.",
+      String(comment.ticketId),
+    );
+  },
+);
+export const notifyNewFollower = onDocumentCreated(
+  { document: "followers/{followId}", region: "europe-west1" },
+  async (event) => {
+    const follow = event.data?.data();
+    if (!follow) return;
+    await createCommunityNotification(
+      String(follow.followingId),
+      "FOLLOW",
+      String(follow.followerId),
+      "Mtu mpya amekufuata.",
+      String(follow.followerId),
+    );
+  },
+);
+
 const API_KEY = process.env.SPORTS_API_KEY;
 type Status = "PENDING" | "WON" | "LOST" | "VOID" | "CANCELLED";
 type Match = {
@@ -166,7 +232,11 @@ function outcome(selection: any, match: any): Status {
 }
 async function updateCreatorStats(uid: string) {
   const snap = await db.collection("tickets").where("creatorId", "==", uid).get();
-  let won = 0, lost = 0, pending = 0, selectionWonCount = 0, selectionLostCount = 0;
+  let won = 0,
+    lost = 0,
+    pending = 0,
+    selectionWonCount = 0,
+    selectionLostCount = 0;
   for (const d of snap.docs) {
     const status = String(d.data().status ?? "PENDING");
     if (status === "WON") won++;
@@ -182,11 +252,21 @@ async function updateCreatorStats(uid: string) {
   const settledTicketCount = won + lost;
   const settledSelections = selectionWonCount + selectionLostCount;
   const winRate = settledTicketCount ? Number(((won / settledTicketCount) * 100).toFixed(2)) : 0;
-  const selectionWinRate = settledSelections ? Number(((selectionWonCount / settledSelections) * 100).toFixed(2)) : 0;
+  const selectionWinRate = settledSelections
+    ? Number(((selectionWonCount / settledSelections) * 100).toFixed(2))
+    : 0;
   const stats = {
-    ticketCount: snap.size, settledTicketCount, wonCount: won, lostCount: lost, pendingCount: pending,
-    winRate, selectionWonCount, selectionLostCount, selectionWinRate,
-    predictorBadge: settledTicketCount < 10 ? "NEUTRAL" : winRate < 35 ? "RED" : winRate < 65 ? "BLUE" : "GREEN",
+    ticketCount: snap.size,
+    settledTicketCount,
+    wonCount: won,
+    lostCount: lost,
+    pendingCount: pending,
+    winRate,
+    selectionWonCount,
+    selectionLostCount,
+    selectionWinRate,
+    predictorBadge:
+      settledTicketCount < 10 ? "NEUTRAL" : winRate < 35 ? "RED" : winRate < 65 ? "BLUE" : "GREEN",
     updatedAt: FieldValue.serverTimestamp(),
   };
   await db.collection("users").doc(uid).set(stats, { merge: true });
@@ -572,6 +652,27 @@ export const adminDashboard = onCall({ region: "europe-west1" }, async (request)
   };
 });
 
+export const adminSetTipsterVerification = onCall({ region: "europe-west1" }, async (request) => {
+  await assertAdmin(request);
+  const uid = String(request.data?.uid ?? "");
+  const verified = request.data?.verified;
+  if (!uid || typeof verified !== "boolean")
+    throw new HttpsError("invalid-argument", "UID na verification status vinahitajika.");
+  const target = await db.collection("users").doc(uid).get();
+  if (!target.exists) throw new HttpsError("not-found", "User profile haipo.");
+  await db
+    .collection("publicProfiles")
+    .doc(uid)
+    .set({ accountVerified: verified, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  await db.collection("adminAudit").add({
+    type: "tipster-verification",
+    targetUid: uid,
+    verified,
+    actorUid: request.auth!.uid,
+    createdAt: FieldValue.serverTimestamp(),
+  });
+  return { ok: true, verified };
+});
 export const adminSetUserStatus = onCall({ region: "europe-west1" }, async (request) => {
   await assertAdmin(request);
   const uid = String(request.data?.uid ?? "");

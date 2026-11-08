@@ -46,6 +46,7 @@ import {
   adminSetAutoConfig,
   adminSetUserRole,
   adminSetUserStatus,
+  adminSetTipsterVerification,
   firestore,
   logout,
   runAdminSync,
@@ -95,6 +96,7 @@ function Admin() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
   const [selectedUserTickets, setSelectedUserTickets] = useState<Row[]>([]);
+  const [verifiedUsers, setVerifiedUsers] = useState<Set<string>>(new Set());
   useEffect(() => subscribeToAuth(setUser), []);
   useEffect(() => {
     if (user)
@@ -132,6 +134,16 @@ function Admin() {
         adminMatchData(),
       ]);
       setData(summary);
+      const publicProfiles = await getDocs(
+        query(collection(firestore, "publicProfiles"), limit(1000)),
+      );
+      setVerifiedUsers(
+        new Set(
+          publicProfiles.docs
+            .filter((item) => item.data().accountVerified === true)
+            .map((item) => item.id),
+        ),
+      );
       setTickets(ticketSnap.docs.map((item) => ({ id: item.id, ...item.data() })));
       setReports(reportSnap.docs.map((item) => ({ id: item.id, ...item.data() })));
       setPayments(paymentSnap.docs.map((item) => ({ id: item.id, ...item.data() })));
@@ -229,6 +241,26 @@ function Admin() {
       toast.success(`Role imebadilishwa kuwa ${role}.`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Imeshindikana kubadilisha role.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  const changeVerification = async (target: AdminUser) => {
+    setBusy(true);
+    try {
+      const verified = !verifiedUsers.has(target.uid);
+      await adminSetTipsterVerification(target.uid, verified);
+      setVerifiedUsers((current) => {
+        const next = new Set(current);
+        if (verified) next.add(target.uid);
+        else next.delete(target.uid);
+        return next;
+      });
+      toast.success(verified ? "Tipster amethibitishwa." : "Verification imeondolewa.");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Imeshindikana kubadilisha verification.",
+      );
     } finally {
       setBusy(false);
     }
@@ -1207,6 +1239,8 @@ function UserDrawer({
   onClose,
   onStatus,
   onRole,
+  verified,
+  onVerification,
 }: {
   user: AdminUser;
   tickets: Row[];
@@ -1215,6 +1249,8 @@ function UserDrawer({
   onClose: () => void;
   onStatus: () => void;
   onRole: () => void;
+  verified: boolean;
+  onVerification: () => void;
 }) {
   return (
     <div className="admin-drawer-backdrop" onClick={onClose}>
@@ -1280,6 +1316,10 @@ function UserDrawer({
           >
             {user.disabled ? <Unlock size={16} /> : <Lock size={16} />}
             {user.disabled ? "Fungua akaunti" : "Zuia akaunti"}
+          </button>
+          <button className="admin-outline full" disabled={busy} onClick={onVerification}>
+            <ShieldCheck size={16} />
+            {verified ? "Ondoa verified" : "Thibitisha tipster"}
           </button>
           {canManage && (
             <button className="admin-outline full" disabled={busy} onClick={onRole}>
