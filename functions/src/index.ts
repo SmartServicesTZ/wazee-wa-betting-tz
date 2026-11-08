@@ -863,6 +863,21 @@ export const adminCreateTicket = onCall({ region: "europe-west1" }, async (reque
   };
 });
 
+async function writeAdminActivity(
+  actorUid: string,
+  action: string,
+  targetUid?: string,
+  details?: Record<string, unknown>,
+) {
+  await db.collection("adminActivityLogs").add({
+    actorUid,
+    action,
+    ...(targetUid ? { targetUid } : {}),
+    ...(details ? { details } : {}),
+    createdAt: FieldValue.serverTimestamp(),
+  });
+}
+
 type VirtualCoinReward = { label: string; amount: number; requiredWins: number };
 type VirtualCoinSettings = {
   welcomeBonus: number;
