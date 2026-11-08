@@ -552,3 +552,36 @@ html,body{background:#252833!important;color:#f7f7fa}
  .community-page .page-title{align-items:flex-start}
  .community-page .page-title>.btn{width:100%}
 }
+
+
+/* Inline likes and comments on community ticket cards */
+.ticket-feed-author .ticket-avatar{display:grid;place-items:center;overflow:hidden}
+.ticket-feed-author .ticket-avatar img{width:100%;height:100%;object-fit:cover}
+.ticket-feed-actions>button{margin-left:0}
+.ticket-feed-actions>button.ticket-feed-share-action{margin-left:auto}
+.ticket-feed-actions>button:disabled{opacity:.55;cursor:wait}
+.ticket-feed-actions>.ticket-reaction-active{background:#ffe60018;color:#ffe600}
+.ticket-feed-actions>.ticket-reaction-active b{color:#ffe600}
+.ticket-inline-comments{padding:11px 13px 13px;border-top:1px solid #454c5d;background:#1d222d}
+.ticket-comments-state{margin:0;padding:9px 0;color:#c2c7d2;font-size:11px}
+.ticket-comments-error{display:flex;align-items:center;justify-content:space-between;gap:10px;color:#ffb4a8}
+.ticket-comments-error button{border:0;border-radius:6px;background:#3b6595;color:#fff;padding:7px 10px;font-size:10px;font-weight:800}
+.ticket-inline-comment-list{display:grid;gap:10px;max-height:260px;overflow:auto;padding:2px 0 10px}
+.ticket-inline-comment{display:grid;grid-template-columns:28px minmax(0,1fr);gap:8px;align-items:start}
+.ticket-inline-comment-avatar{display:grid;place-items:center;width:28px;height:28px;border-radius:50%;background:#3b4050;color:#ffe600;font-size:11px;font-weight:900}
+.ticket-inline-comment-meta{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.ticket-inline-comment-meta b{color:#f7f7fa;font-size:11px}
+.ticket-inline-comment-meta small{color:#9fa8bb;font-size:9px}
+.ticket-inline-comment p{margin:3px 0 0;color:#d3d7df;font-size:12px;line-height:1.45;overflow-wrap:anywhere}
+.ticket-inline-comment-form{display:grid;gap:7px;margin-top:8px}
+.ticket-inline-comment-form textarea{width:100%;min-height:58px;resize:vertical;border:1px solid #51596b;border-radius:8px;background:#252a36;color:#f7f7fa;padding:9px 10px;font:inherit;font-size:12px}
+.ticket-inline-comment-submit{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.ticket-inline-comment-submit small{color:#aab1bf;font-size:10px}
+.ticket-inline-comment-submit button{display:inline-flex;align-items:center;gap:6px;border:0;border-radius:7px;background:#ffe600;color:#1e2029;padding:8px 11px;font-size:11px;font-weight:900;cursor:pointer}
+.ticket-inline-comment-submit button:disabled{opacity:.5;cursor:not-allowed}
+.ticket-comments-login{margin:0;padding:10px 0 2px;color:#c2c7d2;font-size:11px}
+.ticket-comments-login a{color:#ffe600;font-weight:900}
+@media(max-width:420px){
+ .ticket-feed-actions{gap:2px;padding:7px 8px}
+ .ticket-feed-actions>a,.ticket-feed-actions>button{gap:4px;padding:6px 5px;font-size:10px}
+}

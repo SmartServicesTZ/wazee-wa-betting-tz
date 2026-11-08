@@ -242,7 +242,7 @@ function Home() {
           ) : tickets.length ? (
             <div className="gsb-home-ticket-list">
               {tickets.map((ticket) => (
-                <TicketFeedCard key={ticket.id} ticket={ticket} compact />
+                <TicketFeedCard key={ticket.id} ticket={ticket} currentUser={user} compact />
               ))}
             </div>
           ) : (
