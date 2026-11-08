@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   ChevronRight,
   CreditCard,
+  Coins,
   Eye,
   EyeOff,
   Flag,
@@ -32,6 +33,9 @@ import { toast } from "sonner";
 import { AppShell } from "../components/app-shell";
 import {
   adminDashboard,
+  adminVirtualCoinOverview,
+  adminSaveVirtualCoinSettings,
+  adminGrantVirtualCoins,
   adminAuditEvent,
   adminDeleteTicket,
   adminUpdateTicket,
@@ -52,6 +56,7 @@ import {
   type AutoConfig,
   type AdminUser,
   type AdminSiteSettings,
+  type VirtualCoinOverview,
 } from "../lib/firebase";
 import { getUserProfile } from "../lib/firestore";
 
@@ -59,6 +64,7 @@ export const Route = createFileRoute("/admin")({ component: Admin });
 type Section =
   | "overview"
   | "users"
+  | "coins"
   | "tickets"
   | "automatic"
   | "matches"
@@ -72,6 +78,7 @@ type Row = { id: string; [key: string]: unknown };
 const sections: { id: Section; label: string; icon: typeof Activity }[] = [
   { id: "overview", label: "Muhtasari", icon: LayoutDashboard },
   { id: "users", label: "Watumiaji", icon: Users },
+  { id: "coins", label: "Virtual Coins", icon: Coins },
   { id: "tickets", label: "Tiketi", icon: Ticket },
   { id: "automatic", label: "Automatic Tickets", icon: Activity },
   { id: "matches", label: "Mechi", icon: CalendarDays },
@@ -103,6 +110,7 @@ function Admin() {
   const [autoConfig, setAutoConfig] = useState<AutoConfig | null>(null);
   const [autoLogs, setAutoLogs] = useState<Row[]>([]);
   const [settings, setSettings] = useState<AdminSiteSettings | null>(null);
+  const [coinOverview, setCoinOverview] = useState<VirtualCoinOverview | null>(null);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -146,6 +154,7 @@ function Admin() {
         activitySnap,
         matchData,
         siteSettings,
+        coinData,
       ] = await Promise.all([
         adminDashboard(),
         getDocs(query(collection(firestore, "tickets"), orderBy("createdAt", "desc"), limit(100))),
@@ -161,6 +170,7 @@ function Admin() {
         ),
         adminMatchData(),
         adminGetSiteSettings(),
+        adminVirtualCoinOverview(),
       ]);
       setData(summary);
       setTickets(ticketSnap.docs.map((item) => ({ id: item.id, ...item.data() })));
@@ -179,6 +189,7 @@ function Admin() {
       };
       setLogs(logRows.sort((a, b) => millis(b["createdAt"]) - millis(a["createdAt"])).slice(0, 50));
       setSettings(siteSettings);
+      setCoinOverview(coinData);
       setMatches(matchData.matches);
       setAutoConfig(matchData.autoConfig);
       setAutoLogs(matchData.logs);
@@ -336,7 +347,7 @@ function Admin() {
     }
   };
   return (
-    <AppShell user={user}>
+    <AppShell user={user ?? null}>
       <div className="admin-layout">
         <aside className={`admin-sidebar ${mobileOpen ? "is-open" : ""}`}>
           <div className="admin-sidebar-head">
@@ -419,6 +430,39 @@ function Admin() {
           )}
           {section === "overview" && (
             <Overview data={data} payments={payments} onUsers={() => setSection("users")} />
+          )}
+          {section === "coins" && coinOverview && (
+            <VirtualCoinsSection
+              overview={coinOverview}
+              users={data?.users ?? []}
+              canConfigure={isSuperAdmin}
+              onSave={async (next) => {
+                try {
+                  const result = await adminSaveVirtualCoinSettings(next);
+                  setCoinOverview((current) =>
+                    current ? { ...current, settings: result.settings } : current,
+                  );
+                  toast.success("Masharti ya Virtual Coins yamehifadhiwa.");
+                } catch (error) {
+                  toast.error(
+                    error instanceof Error
+                      ? error.message
+                      : "Imeshindikana kuhifadhi coins settings.",
+                  );
+                }
+              }}
+              onGrant={async (uid, amount, reason) => {
+                try {
+                  await adminGrantVirtualCoins(uid, amount, reason, `admin-${Date.now()}-${uid}`);
+                  toast.success("Coins zimeongezwa kwa usalama wa server.");
+                  await load();
+                } catch (error) {
+                  toast.error(
+                    error instanceof Error ? error.message : "Imeshindikana kutoa coins.",
+                  );
+                }
+              }}
+            />
           )}
           {section === "users" && (
             <UsersSection
@@ -574,7 +618,7 @@ function Admin() {
 }
 function AccessState({ children, user }: { children: ReactNode; user?: User }) {
   return (
-    <AppShell user={user}>
+    <AppShell user={user ?? null}>
       <div className="page narrow">
         <div className="empty">{children}</div>
       </div>
@@ -1514,6 +1558,221 @@ function exportRows(filename: string, rows: Row[]) {
   URL.revokeObjectURL(url);
 }
 
+function VirtualCoinsSection({
+  overview,
+  users,
+  canConfigure,
+  onSave,
+  onGrant,
+}: {
+  overview: VirtualCoinOverview;
+  users: AdminUser[];
+  canConfigure: boolean;
+  onSave: (settings: VirtualCoinOverview["settings"]) => Promise<void>;
+  onGrant: (uid: string, amount: number, reason: string) => Promise<void>;
+}) {
+  const [draft, setDraft] = useState(overview.settings);
+  const [uid, setUid] = useState("");
+  const [amount, setAmount] = useState(100);
+  const [reason, setReason] = useState("Admin reward");
+  const [saving, setSaving] = useState(false);
+  useEffect(() => setDraft(overview.settings), [overview.settings]);
+  const save = async () => {
+    setSaving(true);
+    try {
+      await onSave(draft);
+    } finally {
+      setSaving(false);
+    }
+  };
+  const grant = async () => {
+    if (!uid || amount < 1 || !reason.trim()) return;
+    setSaving(true);
+    try {
+      await onGrant(uid, amount, reason.trim());
+      setUid("");
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <div className="admin-content">
+      <div className="admin-section-heading">
+        <div>
+          <span className="admin-kicker">NON-MONETARY LEDGER</span>
+          <h2>Virtual Coins</h2>
+          <p>Coins za majaribio pekee; hakuna deposits, withdrawals wala malipo halisi.</p>
+        </div>
+        <span className="admin-count">{overview.wallets.length} wallets</span>
+      </div>
+      <div className="admin-stat-grid">
+        {[
+          ["Salio lote", overview.totals.balance],
+          ["Zilizopatikana", overview.totals.earned],
+          ["Zilizotumika", overview.totals.spent],
+        ].map(([label, value]) => (
+          <div className="admin-stat green" key={String(label)}>
+            <div className="admin-stat-icon">
+              <Coins size={18} />
+            </div>
+            <span>{label}</span>
+            <strong>{Number(value).toLocaleString()}</strong>
+          </div>
+        ))}
+      </div>
+      <div className="admin-columns">
+        <div className="admin-card settings-card">
+          <div className="admin-card-head">
+            <div>
+              <span className="admin-kicker">REWARD POLICY</span>
+              <h3>Zawadi na masharti</h3>
+            </div>
+            <ShieldCheck size={20} />
+          </div>
+          <div className="composer-grid">
+            <label>
+              Welcome bonus
+              <input
+                type="number"
+                min="0"
+                value={draft.welcomeBonus}
+                disabled={!canConfigure}
+                onChange={(e) => setDraft({ ...draft, welcomeBonus: Number(e.target.value) })}
+              />
+            </label>
+            <label>
+              Daily grant
+              <input
+                type="number"
+                min="0"
+                value={draft.dailyGrant}
+                disabled={!canConfigure}
+                onChange={(e) => setDraft({ ...draft, dailyGrant: Number(e.target.value) })}
+              />
+            </label>
+            <label>
+              Min bet
+              <input
+                type="number"
+                min="1"
+                value={draft.minBet}
+                disabled={!canConfigure}
+                onChange={(e) => setDraft({ ...draft, minBet: Number(e.target.value) })}
+              />
+            </label>
+            <label>
+              Max bet
+              <input
+                type="number"
+                min="1"
+                value={draft.maxBet}
+                disabled={!canConfigure}
+                onChange={(e) => setDraft({ ...draft, maxBet: Number(e.target.value) })}
+              />
+            </label>
+          </div>
+          <label className="toggle-line">
+            <input
+              type="checkbox"
+              checked={draft.dailyGrantEnabled}
+              disabled={!canConfigure}
+              onChange={(e) => setDraft({ ...draft, dailyGrantEnabled: e.target.checked })}
+            />{" "}
+            Daily free coins ziwezeshwe
+          </label>
+          {canConfigure ? (
+            <button className="admin-sync" disabled={saving} onClick={() => void save()}>
+              {saving ? "Inahifadhi..." : "Hifadhi masharti"}
+            </button>
+          ) : (
+            <p className="settings-note">Mabadiliko ya rewards yanahitaji SUPER_ADMIN.</p>
+          )}
+        </div>
+        <div className="admin-card settings-card">
+          <div className="admin-card-head">
+            <div>
+              <span className="admin-kicker">SERVER-SIDE GRANT</span>
+              <h3>Ongeza coins</h3>
+            </div>
+            <ShieldCheck size={20} />
+          </div>
+          <label>
+            Mtumiaji
+            <select value={uid} onChange={(e) => setUid(e.target.value)}>
+              <option value="">Chagua mtumiaji...</option>
+              {users
+                .filter((u) => u.role !== "SUPER_ADMIN")
+                .map((u) => (
+                  <option key={u.uid} value={u.uid}>
+                    {u.displayName || u.username || u.uid}
+                  </option>
+                ))}
+            </select>
+          </label>
+          <div className="composer-grid">
+            <label>
+              Kiasi
+              <input
+                type="number"
+                min="1"
+                max="1000000"
+                value={amount}
+                onChange={(e) => setAmount(Number(e.target.value))}
+              />
+            </label>
+            <label>
+              Sababu
+              <input value={reason} maxLength={160} onChange={(e) => setReason(e.target.value)} />
+            </label>
+          </div>
+          <button
+            className="admin-sync"
+            disabled={saving || !uid || amount < 1}
+            onClick={() => void grant()}
+          >
+            Thibitisha grant
+          </button>
+          <p className="settings-note">
+            Miamala huandikwa mara moja tu kwa idempotency key ya server.
+          </p>
+        </div>
+      </div>
+      <div className="admin-card admin-list-card">
+        <div className="admin-card-head">
+          <div>
+            <span className="admin-kicker">RECENT LEDGER</span>
+            <h3>Historia ya coins</h3>
+          </div>
+          <span className="admin-count">{overview.transactions.length} records</span>
+        </div>
+        {overview.transactions.length ? (
+          overview.transactions.slice(0, 30).map((row) => (
+            <div className="admin-list-row" key={row.id}>
+              <div className="admin-avatar small">
+                <Coins size={15} />
+              </div>
+              <div className="admin-list-main">
+                <b>
+                  {String(row.type ?? "TRANSACTION")} · {String(row.amount ?? 0)} coins
+                </b>
+                <small>
+                  User: {String(row.userId ?? "—")} ·{" "}
+                  {String(row.reason ?? row.ticketId ?? "Virtual bet")}
+                </small>
+                <span>{fmt(row.createdAt)}</span>
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="admin-empty">
+            <Coins size={24} />
+            <b>Hakuna coin transactions bado.</b>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 function RowsSection({
   title,
   rows,

@@ -170,7 +170,11 @@ function outcome(selection: any, match: any): Status {
 }
 async function updateCreatorStats(uid: string) {
   const snap = await db.collection("tickets").where("creatorId", "==", uid).get();
-  let won = 0, lost = 0, pending = 0, selectionWonCount = 0, selectionLostCount = 0;
+  let won = 0,
+    lost = 0,
+    pending = 0,
+    selectionWonCount = 0,
+    selectionLostCount = 0;
   for (const d of snap.docs) {
     const status = String(d.data().status ?? "PENDING");
     if (status === "WON") won++;
@@ -186,11 +190,21 @@ async function updateCreatorStats(uid: string) {
   const settledTicketCount = won + lost;
   const settledSelections = selectionWonCount + selectionLostCount;
   const winRate = settledTicketCount ? Number(((won / settledTicketCount) * 100).toFixed(2)) : 0;
-  const selectionWinRate = settledSelections ? Number(((selectionWonCount / settledSelections) * 100).toFixed(2)) : 0;
+  const selectionWinRate = settledSelections
+    ? Number(((selectionWonCount / settledSelections) * 100).toFixed(2))
+    : 0;
   const stats = {
-    ticketCount: snap.size, settledTicketCount, wonCount: won, lostCount: lost, pendingCount: pending,
-    winRate, selectionWonCount, selectionLostCount, selectionWinRate,
-    predictorBadge: settledTicketCount < 10 ? "NEUTRAL" : winRate < 35 ? "RED" : winRate < 65 ? "BLUE" : "GREEN",
+    ticketCount: snap.size,
+    settledTicketCount,
+    wonCount: won,
+    lostCount: lost,
+    pendingCount: pending,
+    winRate,
+    selectionWonCount,
+    selectionLostCount,
+    selectionWinRate,
+    predictorBadge:
+      settledTicketCount < 10 ? "NEUTRAL" : winRate < 35 ? "RED" : winRate < 65 ? "BLUE" : "GREEN",
     updatedAt: FieldValue.serverTimestamp(),
   };
   await db.collection("users").doc(uid).set(stats, { merge: true });
@@ -1018,4 +1032,258 @@ export const adminCreateTicket = onCall({ region: "europe-west1" }, async (reque
     totalOdds: Number(totalOdds.toFixed(2)),
     selectionCount: validated.length,
   };
+});
+
+type VirtualCoinReward = { label: string; amount: number; requiredWins: number };
+type VirtualCoinSettings = {
+  welcomeBonus: number;
+  dailyGrant: number;
+  dailyGrantEnabled: boolean;
+  minBet: number;
+  maxBet: number;
+  rewards: VirtualCoinReward[];
+};
+const defaultVirtualCoinSettings: VirtualCoinSettings = {
+  welcomeBonus: 100,
+  dailyGrant: 25,
+  dailyGrantEnabled: true,
+  minBet: 1,
+  maxBet: 1000,
+  rewards: [
+    { label: "Mshindi wa wiki", amount: 250, requiredWins: 5 },
+    { label: "Mshindi wa mwezi", amount: 1000, requiredWins: 20 },
+  ],
+};
+function coinWalletRef(uid: string) {
+  return db.collection("coinBalances").doc(uid);
+}
+function coinTransactionRef(uid: string, idempotencyKey: string) {
+  return db
+    .collection("coinTransactions")
+    .doc(`${uid}_${idempotencyKey}`.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 140));
+}
+function normalizeCoinSettings(raw: any): VirtualCoinSettings {
+  const rewards = Array.isArray(raw?.rewards)
+    ? raw.rewards
+        .slice(0, 10)
+        .map((item: any) => ({
+          label: String(item?.label ?? "Reward")
+            .trim()
+            .slice(0, 80),
+          amount: Math.max(0, Math.min(1000000, Math.floor(Number(item?.amount ?? 0)))),
+          requiredWins: Math.max(0, Math.min(100000, Math.floor(Number(item?.requiredWins ?? 0)))),
+        }))
+        .filter((item: VirtualCoinReward) => item.label && item.amount > 0)
+    : defaultVirtualCoinSettings.rewards;
+  return {
+    welcomeBonus: Math.max(
+      0,
+      Math.min(
+        1000000,
+        Math.floor(Number(raw?.welcomeBonus ?? defaultVirtualCoinSettings.welcomeBonus)),
+      ),
+    ),
+    dailyGrant: Math.max(
+      0,
+      Math.min(
+        1000000,
+        Math.floor(Number(raw?.dailyGrant ?? defaultVirtualCoinSettings.dailyGrant)),
+      ),
+    ),
+    dailyGrantEnabled: raw?.dailyGrantEnabled !== false,
+    minBet: Math.max(
+      1,
+      Math.min(1000000, Math.floor(Number(raw?.minBet ?? defaultVirtualCoinSettings.minBet))),
+    ),
+    maxBet: Math.max(
+      1,
+      Math.min(1000000, Math.floor(Number(raw?.maxBet ?? defaultVirtualCoinSettings.maxBet))),
+    ),
+    rewards: rewards.length ? rewards : defaultVirtualCoinSettings.rewards,
+  };
+}
+async function getVirtualCoinSettings() {
+  const snap = await db.collection("coinSettings").doc("main").get();
+  return normalizeCoinSettings(snap.data() ?? defaultVirtualCoinSettings);
+}
+export const getVirtualCoinWallet = onCall({ region: "europe-west1" }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Login required.");
+  const [walletSnap, txSnap, settings] = await Promise.all([
+    coinWalletRef(request.auth.uid).get(),
+    db.collection("coinTransactions").where("userId", "==", request.auth.uid).limit(50).get(),
+    getVirtualCoinSettings(),
+  ]);
+  return {
+    balance: Number(walletSnap.data()?.balance ?? 0),
+    lifetimeEarned: Number(walletSnap.data()?.lifetimeEarned ?? 0),
+    lifetimeSpent: Number(walletSnap.data()?.lifetimeSpent ?? 0),
+    settings: { minBet: settings.minBet, maxBet: settings.maxBet },
+    transactions: txSnap.docs.map((item) => ({ id: item.id, ...item.data() })),
+  };
+});
+export const claimVirtualCoins = onCall({ region: "europe-west1" }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Login required.");
+  const uid = request.auth.uid;
+  const kind = String(request.data?.kind ?? "daily").toLowerCase();
+  const settings = await getVirtualCoinSettings();
+  if (kind !== "daily" && kind !== "welcome")
+    throw new HttpsError("invalid-argument", "Reward haijulikani.");
+  if (kind === "daily" && !settings.dailyGrantEnabled)
+    throw new HttpsError("failed-precondition", "Daily coins zimezimwa.");
+  const amount = kind === "daily" ? settings.dailyGrant : settings.welcomeBonus;
+  const key = kind === "daily" ? `daily-${new Date().toISOString().slice(0, 10)}` : "welcome";
+  const txRef = coinTransactionRef(uid, key);
+  const walletRef = coinWalletRef(uid);
+  let claimed = false;
+  await db.runTransaction(async (tx) => {
+    const [existing, wallet] = await Promise.all([tx.get(txRef), tx.get(walletRef)]);
+    if (existing.exists) return;
+    if (kind === "welcome" && Number(wallet.data()?.lifetimeEarned ?? 0) > 0) return;
+    if (amount < 1) return;
+    const current = Number(wallet.data()?.balance ?? 0);
+    tx.set(
+      walletRef,
+      {
+        balance: current + amount,
+        lifetimeEarned: Number(wallet.data()?.lifetimeEarned ?? 0) + amount,
+        lifetimeSpent: Number(wallet.data()?.lifetimeSpent ?? 0),
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+    tx.create(txRef, {
+      userId: uid,
+      type: "REWARD",
+      amount,
+      reason: kind === "daily" ? "Daily free coins" : "Welcome bonus",
+      idempotencyKey: key,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    claimed = true;
+  });
+  return { ok: true, claimed, amount: claimed ? amount : 0, kind };
+});
+export const adminVirtualCoinOverview = onCall({ region: "europe-west1" }, async (request) => {
+  await assertAdmin(request);
+  const [walletSnap, txSnap, settingsSnap] = await Promise.all([
+    db.collection("coinBalances").limit(1000).get(),
+    db.collection("coinTransactions").orderBy("createdAt", "desc").limit(200).get(),
+    db.collection("coinSettings").doc("main").get(),
+  ]);
+  const wallets = walletSnap.docs.map((item) => ({ uid: item.id, ...item.data() }));
+  return {
+    settings: normalizeCoinSettings(settingsSnap.data() ?? defaultVirtualCoinSettings),
+    wallets,
+    transactions: txSnap.docs.map((item) => ({ id: item.id, ...item.data() })),
+    totals: {
+      balance: wallets.reduce((sum, item: any) => sum + Number(item.balance ?? 0), 0),
+      earned: wallets.reduce((sum, item: any) => sum + Number(item.lifetimeEarned ?? 0), 0),
+      spent: wallets.reduce((sum, item: any) => sum + Number(item.lifetimeSpent ?? 0), 0),
+    },
+  };
+});
+export const adminSaveVirtualCoinSettings = onCall({ region: "europe-west1" }, async (request) => {
+  await assertAdmin(request);
+  const actor = await db.collection("users").doc(request.auth!.uid).get();
+  if (actor.data()?.role !== "SUPER_ADMIN")
+    throw new HttpsError("permission-denied", "SUPER_ADMIN only.");
+  const settings = normalizeCoinSettings(request.data ?? {});
+  if (settings.minBet > settings.maxBet)
+    throw new HttpsError("invalid-argument", "Min bet haiwezi kuzidi max bet.");
+  await db
+    .collection("coinSettings")
+    .doc("main")
+    .set(
+      { ...settings, updatedAt: FieldValue.serverTimestamp(), updatedBy: request.auth!.uid },
+      { merge: true },
+    );
+  await writeAdminActivity(request.auth!.uid, "virtual_coins.settings_updated", undefined, {
+    dailyGrantEnabled: settings.dailyGrantEnabled,
+  });
+  return { ok: true, settings };
+});
+export const adminGrantVirtualCoins = onCall({ region: "europe-west1" }, async (request) => {
+  await assertAdmin(request);
+  const uid = String(request.data?.uid ?? "").trim();
+  const amount = Math.floor(Number(request.data?.amount ?? 0));
+  const reason = String(request.data?.reason ?? "Admin reward")
+    .trim()
+    .slice(0, 160);
+  const idempotencyKey = String(request.data?.idempotencyKey ?? "").trim();
+  if (
+    !uid ||
+    !idempotencyKey ||
+    !Number.isSafeInteger(amount) ||
+    amount < 1 ||
+    amount > 1000000 ||
+    !reason
+  )
+    throw new HttpsError("invalid-argument", "UID, kiasi, sababu na idempotency key vinahitajika.");
+  const target = await db.collection("users").doc(uid).get();
+  if (!target.exists) throw new HttpsError("not-found", "User profile haipo.");
+  const txRef = coinTransactionRef(uid, idempotencyKey);
+  const walletRef = coinWalletRef(uid);
+  await db.runTransaction(async (tx) => {
+    const [existing, wallet] = await Promise.all([tx.get(txRef), tx.get(walletRef)]);
+    if (existing.exists) return;
+    const current = Number(wallet.data()?.balance ?? 0);
+    tx.set(
+      walletRef,
+      {
+        balance: current + amount,
+        lifetimeEarned: Number(wallet.data()?.lifetimeEarned ?? 0) + amount,
+        lifetimeSpent: Number(wallet.data()?.lifetimeSpent ?? 0),
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+    tx.create(txRef, {
+      userId: uid,
+      type: "GRANT",
+      amount,
+      reason,
+      idempotencyKey,
+      actorUid: request.auth!.uid,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+  });
+  await writeAdminActivity(request.auth!.uid, "virtual_coins.granted", uid, { amount, reason });
+  return { ok: true, idempotent: true };
+});
+export const placeVirtualBet = onCall({ region: "europe-west1" }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Login required.");
+  const amount = Math.floor(Number(request.data?.amount ?? 0));
+  const idempotencyKey = String(request.data?.idempotencyKey ?? "").trim();
+  const ticketId = String(request.data?.ticketId ?? "").trim();
+  if (!ticketId || !idempotencyKey || !Number.isSafeInteger(amount))
+    throw new HttpsError("invalid-argument", "Ticket, kiasi na idempotency key vinahitajika.");
+  const settings = await getVirtualCoinSettings();
+  if (amount < settings.minBet || amount > settings.maxBet)
+    throw new HttpsError("invalid-argument", "Kiasi cha coins hakipo kwenye mipaka.");
+  const ticket = await db.collection("tickets").doc(ticketId).get();
+  if (!ticket.exists || ticket.data()?.status !== "PENDING")
+    throw new HttpsError("failed-precondition", "Ticket haipokei virtual bet.");
+  const txRef = coinTransactionRef(request.auth.uid, idempotencyKey);
+  const walletRef = coinWalletRef(request.auth.uid);
+  await db.runTransaction(async (tx) => {
+    const [existing, wallet] = await Promise.all([tx.get(txRef), tx.get(walletRef)]);
+    if (existing.exists) return;
+    const balance = Number(wallet.data()?.balance ?? 0);
+    if (balance < amount)
+      throw new HttpsError("failed-precondition", "Salio la virtual coins halitoshi.");
+    tx.update(walletRef, {
+      balance: balance - amount,
+      lifetimeSpent: Number(wallet.data()?.lifetimeSpent ?? 0) + amount,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.create(txRef, {
+      userId: request.auth!.uid,
+      type: "BET",
+      amount: -amount,
+      ticketId,
+      idempotencyKey,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+  });
+  return { ok: true, amount, ticketId };
 });

@@ -381,3 +381,78 @@ export async function adminCreateTicket(input: {
   return (await callable(input)).data;
 }
 type RowLike = { id: string; [key: string]: unknown };
+
+export type VirtualCoinReward = { label: string; amount: number; requiredWins: number };
+export type VirtualCoinSettings = {
+  welcomeBonus: number;
+  dailyGrant: number;
+  dailyGrantEnabled: boolean;
+  minBet: number;
+  maxBet: number;
+  rewards: VirtualCoinReward[];
+};
+export type VirtualCoinOverview = {
+  settings: VirtualCoinSettings;
+  wallets: Array<{
+    uid: string;
+    balance?: number;
+    lifetimeEarned?: number;
+    lifetimeSpent?: number;
+  }>;
+  transactions: Array<Record<string, unknown> & { id: string }>;
+  totals: { balance: number; earned: number; spent: number };
+};
+export async function adminVirtualCoinOverview() {
+  const callable = httpsCallable<Record<string, never>, VirtualCoinOverview>(
+    functions,
+    "adminVirtualCoinOverview",
+  );
+  return (await callable({})).data;
+}
+export async function adminSaveVirtualCoinSettings(settings: VirtualCoinSettings) {
+  const callable = httpsCallable<
+    VirtualCoinSettings,
+    { ok: boolean; settings: VirtualCoinSettings }
+  >(functions, "adminSaveVirtualCoinSettings");
+  return (await callable(settings)).data;
+}
+export async function adminGrantVirtualCoins(
+  uid: string,
+  amount: number,
+  reason: string,
+  idempotencyKey: string,
+) {
+  const callable = httpsCallable<
+    { uid: string; amount: number; reason: string; idempotencyKey: string },
+    { ok: boolean; idempotent: boolean }
+  >(functions, "adminGrantVirtualCoins");
+  return (await callable({ uid, amount, reason, idempotencyKey })).data;
+}
+export async function getVirtualCoinWallet() {
+  const callable = httpsCallable<
+    Record<string, never>,
+    {
+      balance: number;
+      lifetimeEarned: number;
+      lifetimeSpent: number;
+      settings: { minBet: number; maxBet: number };
+      transactions: Array<Record<string, unknown> & { id: string }>;
+    }
+  >(functions, "getVirtualCoinWallet");
+  return (await callable({})).data;
+}
+export async function placeVirtualBet(ticketId: string, amount: number, idempotencyKey: string) {
+  const callable = httpsCallable<
+    { ticketId: string; amount: number; idempotencyKey: string },
+    { ok: boolean; amount: number; ticketId: string }
+  >(functions, "placeVirtualBet");
+  return (await callable({ ticketId, amount, idempotencyKey })).data;
+}
+
+export async function claimVirtualCoins(kind: "daily" | "welcome") {
+  const callable = httpsCallable<
+    { kind: "daily" | "welcome" },
+    { ok: boolean; claimed: boolean; amount: number; kind: string }
+  >(functions, "claimVirtualCoins");
+  return (await callable({ kind })).data;
+}
