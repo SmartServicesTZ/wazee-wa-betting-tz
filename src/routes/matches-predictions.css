@@ -1,0 +1,115 @@
+.prediction-section {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 18px;
+  padding: 18px;
+}
+.prediction-heading,
+.prediction-card-head,
+.prediction-values {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.prediction-heading h2 {
+  margin: 4px 0 0;
+}
+.prediction-accuracy {
+  display: grid;
+  justify-items: end;
+  gap: 3px;
+}
+.prediction-accuracy strong {
+  color: var(--accent);
+  font-size: 22px;
+}
+.prediction-accuracy small,
+.prediction-source {
+  color: var(--muted-2);
+  font-size: 11px;
+}
+.prediction-notice {
+  margin: 0;
+  border-left: 3px solid var(--accent);
+  padding: 8px 10px;
+  background: var(--surface-2);
+  color: var(--muted-2);
+  font-size: 12px;
+  line-height: 1.55;
+}
+.prediction-section > h3 {
+  margin: 6px 0 0;
+  font-size: 15px;
+}
+.prediction-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.prediction-card {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 13px;
+  background: var(--surface-2);
+}
+.prediction-card-head small {
+  color: var(--muted-2);
+  font-size: 11px;
+}
+.prediction-card h3 {
+  margin: 12px 0 4px;
+  font-size: 15px;
+  line-height: 1.4;
+}
+.prediction-card h3 span {
+  color: var(--muted-2);
+  font-size: 12px;
+  font-weight: 500;
+}
+.prediction-market {
+  margin: 0 0 10px;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 700;
+}
+.prediction-values {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 7px 14px;
+  border-block: 1px solid var(--line);
+  padding: 8px 0;
+  font-size: 12px;
+}
+.prediction-values b {
+  margin-left: 3px;
+  color: var(--text);
+}
+.prediction-reason {
+  margin: 9px 0;
+  color: var(--muted-2);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.prediction-source {
+  display: block;
+  line-height: 1.45;
+}
+@media (max-width: 640px) {
+  .prediction-section {
+    padding: 13px;
+  }
+  .prediction-heading {
+    align-items: flex-start;
+  }
+  .prediction-accuracy {
+    text-align: right;
+  }
+  .prediction-accuracy small {
+    max-width: 125px;
+  }
+  .prediction-grid {
+    grid-template-columns: 1fr;
+  }
+}

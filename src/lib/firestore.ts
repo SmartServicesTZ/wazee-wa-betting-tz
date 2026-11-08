@@ -183,6 +183,24 @@ function timestampMillis(value: unknown) {
   return 0;
 }
 
+export async function listAiPredictions(max = 100) {
+  const snapshot = await getDocs(
+    query(
+      collection(firestore, "matches"),
+      orderBy("aiPrediction.createdAt", "desc"),
+      limit(Math.min(500, Math.max(1, max))),
+    ),
+  );
+  return snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
+}
+
+export async function getAiPredictionSummary() {
+  const snapshot = await getDoc(doc(firestore, "matches", "ai_prediction_summary"));
+  return snapshot.exists()
+    ? snapshot.data()
+    : { wonCount: 0, lostCount: 0, voidCount: 0, cancelledCount: 0, decidedCount: 0 };
+}
+
 async function listMatchesFrom(kickoffAt: string, max: number) {
   const snapshot = await getDocs(
     query(
