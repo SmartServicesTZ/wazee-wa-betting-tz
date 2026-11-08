@@ -1,14 +1,26 @@
 import { createHash } from "node:crypto";
 import { cert, getApps, initializeApp } from "firebase-admin/app";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
+import {
+  AUTO_ODDS_MAX,
+  AUTO_ODDS_MIN,
+  autoTicketSelectionsMeetPolicy,
+  eligibleAutoOptions,
+  isAutoSelectionOddsValid,
+} from "./auto-ticket-policy.mjs";
 
 const serviceAccount = JSON.parse(
   process.env.FIREBASE_SERVICE_ACCOUNT ?? process.env.FIREBASE_SERVICES_ACCOUNT ?? "{}",
 );
+const expectedProjectId = "wazee-wa-betting-tz-e7183";
 if (!serviceAccount.project_id)
   throw new Error("FIREBASE_SERVICE_ACCOUNT haipo au si JSON sahihi.");
+if (serviceAccount.project_id !== expectedProjectId)
+  throw new Error("Firebase service-account haielekezwi kwenye project inayotarajiwa.");
 if (!process.env.SPORTS_API_KEY) throw new Error("SPORTS_API_KEY haijawekwa.");
-const app = getApps().length ? getApps()[0] : initializeApp({ credential: cert(serviceAccount) });
+const app = getApps().length
+  ? getApps()[0]
+  : initializeApp({ credential: cert(serviceAccount), projectId: expectedProjectId });
 const db = getFirestore(app);
 const apiBase = (process.env.SPORTS_API_BASE_URL ?? "https://v3.football.api-sports.io").replace(
   /\/$/,
@@ -290,10 +302,7 @@ function chooseOption(match, settings) {
       : ["DOUBLE_CHANCE", "1X2", "DRAW_NO_BET", "OVER_UNDER", "BTTS"];
   for (const marketName of preferred) {
     const market = (match.markets ?? []).find((item) => item.market === marketName);
-    const option = (market?.options ?? [])
-      .map((item) => ({ ...item, odds: Number(item.odds) }))
-      .filter((item) => item.odds > 1 && item.odds <= Number(settings.maxOddsPerSelection))
-      .sort((a, b) => a.odds - b.odds)[0];
+    const option = eligibleAutoOptions(market?.options)[0];
     if (option) return { market: marketName, ...option };
   }
   return null;
@@ -342,7 +351,10 @@ async function verifyPublishedTicket(ticketId) {
     automationFingerprintPresent:
       typeof ticket.automationFingerprint === "string" && ticket.automationFingerprint.length > 0,
     selectionCountMatches: Number(ticket.selectionCount) === selections.length,
-    selectionsMeetRange: selections.length >= 2 && selections.length <= 5,
+    selectionsMeetRange: autoTicketSelectionsMeetPolicy(selections),
+    eachSelectionOddsInRange:
+      selectionChecks.length > 0 &&
+      selectionChecks.every((item) => isAutoSelectionOddsValid(item.odds)),
     totalOddsMatches: Number(ticket.totalOdds) === Number(computedTotalOdds.toFixed(2)),
     allSelectionsHaveFreshApiOdds:
       selectionChecks.length > 0 &&
@@ -372,10 +384,11 @@ async function generateTicket() {
   const settings = {
     enabled: true,
     maxSelections: 5,
-    maxOddsPerSelection: 1.65,
     maxTotalOdds: 12,
     risk: "LOW",
     ...config,
+    minOddsPerSelection: AUTO_ODDS_MIN,
+    maxOddsPerSelection: AUTO_ODDS_MAX,
   };
   if (!settings.enabled) return { created: false, reason: "disabled" };
   const now = Date.now();
@@ -399,8 +412,7 @@ async function generateTicket() {
       availableOdds.marketsByName[market.market] =
         (availableOdds.marketsByName[market.market] ?? 0) + 1;
       const count = (market.options ?? []).filter((item) => {
-        const odds = Number(item.odds);
-        return odds > 1 && odds <= Number(settings.maxOddsPerSelection);
+        return isAutoSelectionOddsValid(item.odds);
       }).length;
       if (count) {
         availableOdds.eligibleOptionsByMarket[market.market] =
@@ -447,6 +459,13 @@ async function generateTicket() {
       created: false,
       reason: "total-odds-exceed-configured-maximum",
       qualifyingSelections: selections.length,
+    };
+  if (!autoTicketSelectionsMeetPolicy(selections))
+    return {
+      created: false,
+      reason: "selection-odds-policy-violation",
+      qualifyingSelections: selections.length,
+      requiredOddsRange: { min: AUTO_ODDS_MIN, max: AUTO_ODDS_MAX },
     };
   const fingerprint = createHash("sha256")
     .update(
@@ -544,6 +563,7 @@ async function main() {
     syncResults,
     apiStats,
     result,
+    oddsPolicy: { min: AUTO_ODDS_MIN, max: AUTO_ODDS_MAX, inclusive: true },
     quotaPolicy: {
       maxOddsFixturesPerDate: maxOddsFixtures,
       oddsCacheHours: 6,
@@ -551,8 +571,13 @@ async function main() {
       maxApiRetries,
     },
   };
-  await writeLog({ type: "github-auto-ticket", ok: true, ...diagnostics });
+  const verified = !result.verification || result.verification.verified;
+  await writeLog({ type: "github-auto-ticket", ok: verified, ...diagnostics });
   console.log(JSON.stringify(diagnostics));
+  if (!verified) {
+    console.error("Auto Ticket verification failed; runner did not delete or overwrite ticket data.");
+    process.exitCode = 1;
+  }
 }
 
 try {

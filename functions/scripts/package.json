@@ -1,0 +1,11 @@
+{
+  "name": "wazee-auto-ticket-runner",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "22"
+  },
+  "dependencies": {
+    "firebase-admin": "^14.5.0"
+  }
+}
