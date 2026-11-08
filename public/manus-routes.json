@@ -1,0 +1,15 @@
+{
+  "routes": [
+    { "path": "/", "title": "Nyumbani" },
+    { "path": "/matches", "title": "Mechi" },
+    { "path": "/community", "title": "Jamii" },
+    { "path": "/create-ticket", "title": "Tengeneza mkeka" },
+    { "path": "/dashboard", "title": "Dashboard" },
+    { "path": "/leaderboard", "title": "Leaderboard" },
+    { "path": "/login", "title": "Ingia" },
+    { "path": "/register", "title": "Jisajili" },
+    { "path": "/admin", "title": "Admin" },
+    { "path": "/tickets/$ticketId", "title": "Ticket details" },
+    { "path": "/users/$username", "title": "Profile" }
+  ]
+}
