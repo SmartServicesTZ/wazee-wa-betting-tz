@@ -1077,12 +1077,38 @@ function MatchesSection({
             {logs
               .filter((row) => String(row.type ?? "").includes("auto-ticket"))
               .slice(0, 5)
-              .map((row) => (
-                <div key={row.id}>
-                  <b>{row.ok === false ? "FAILED" : "OK"}</b>
-                  <span>{String(row.error ?? fmt(row.createdAt))}</span>
-                </div>
-              ))}
+              .map((row) => {
+                const result = (row.result ?? {}) as {
+                  created?: boolean;
+                  reason?: string;
+                  totalOdds?: number;
+                  target?: number;
+                };
+                const unavailable = Boolean(
+                  result.reason?.startsWith("no-") ||
+                  result.reason === "not-enough-qualifying-selections",
+                );
+                const state = result.created
+                  ? "IMETENGENEZWA"
+                  : result.reason === "already-created"
+                    ? "TAYARI IMETENGENEZWA"
+                    : unavailable
+                      ? "HAIKUPATIKANA"
+                      : row.ok === false
+                        ? "IMESHINDWA"
+                        : "HAIKUPATIKANA";
+                return (
+                  <div key={row.id}>
+                    <b>{state}</b>
+                    <span>
+                      Target {String(row.targetOdds ?? result.target ?? "—")} ·{" "}
+                      {result.created
+                        ? `actual ${Number(result.totalOdds ?? 0).toFixed(2)}`
+                        : String(result.reason ?? row.error ?? fmt(row.createdAt))}
+                    </span>
+                  </div>
+                );
+              })}
           </div>
         </div>
       </div>

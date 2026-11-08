@@ -500,29 +500,37 @@ async function runAutoTicket(target?: (typeof AUTO_TARGETS)[number]) {
   }
   return target ? allResults[0] : { results: allResults };
 }
+async function runScheduledAutoTarget(target: (typeof AUTO_TARGETS)[number]) {
+  try {
+    await runAutoTicket(target);
+  } catch (error) {
+    console.error("scheduled auto ticket failed", target.target, error);
+    await db.collection("api_logs").add({
+      type: "auto-ticket-target",
+      targetOdds: target.target,
+      idempotencyKey: `auto-ticket-${tanzaniaDate()}-${target.key}`,
+      ok: false,
+      error: String(error),
+      result: { created: false, reason: "generation-error", target: target.target },
+      createdAt: FieldValue.serverTimestamp(),
+    });
+  }
+}
 export const generateAutoTicket15 = onSchedule(
   { schedule: "15 1 * * *", timeZone: "Africa/Dar_es_Salaam", region: "europe-west1" },
-  async () => {
-    await runAutoTicket(AUTO_TARGETS[0]);
-  },
+  async () => runScheduledAutoTarget(AUTO_TARGETS[0]),
 );
 export const generateAutoTicket3 = onSchedule(
   { schedule: "0 2 * * *", timeZone: "Africa/Dar_es_Salaam", region: "europe-west1" },
-  async () => {
-    await runAutoTicket(AUTO_TARGETS[1]);
-  },
+  async () => runScheduledAutoTarget(AUTO_TARGETS[1]),
 );
 export const generateAutoTicket5 = onSchedule(
   { schedule: "45 2 * * *", timeZone: "Africa/Dar_es_Salaam", region: "europe-west1" },
-  async () => {
-    await runAutoTicket(AUTO_TARGETS[2]);
-  },
+  async () => runScheduledAutoTarget(AUTO_TARGETS[2]),
 );
 export const generateAutoTicket10 = onSchedule(
   { schedule: "30 3 * * *", timeZone: "Africa/Dar_es_Salaam", region: "europe-west1" },
-  async () => {
-    await runAutoTicket(AUTO_TARGETS[3]);
-  },
+  async () => runScheduledAutoTarget(AUTO_TARGETS[3]),
 );
 export const adminGenerateAutoTicket = onCall({ region: "europe-west1" }, async (request) => {
   await assertAdmin(request);

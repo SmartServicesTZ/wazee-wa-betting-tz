@@ -23,6 +23,18 @@ function Matches() {
       return String(a.leagueName ?? "").localeCompare(String(b.leagueName ?? ""));
     return new Date(a.kickoffAt).getTime() - new Date(b.kickoffAt).getTime();
   });
+  const liveMatches = matches.filter((m) =>
+    ["LIVE", "1H", "HT", "2H", "ET", "P", "INT"].includes(String(m.status).toUpperCase()),
+  );
+  const latestUpdatedAt = liveMatches
+    .map((m) => m.updatedAt)
+    .filter(Boolean)
+    .sort(
+      (a: any, b: any) =>
+        (b?.toMillis?.() ?? new Date(b).getTime()) - (a?.toMillis?.() ?? new Date(a).getTime()),
+    )[0];
+  const updatedDate =
+    latestUpdatedAt?.toDate?.() ?? (latestUpdatedAt ? new Date(latestUpdatedAt) : null);
   return (
     <AppShell user={user}>
       <div className="page narrow">
@@ -30,7 +42,12 @@ function Matches() {
           <div>
             <span className="eyebrow">SPORTS DATA</span>
             <h1>Ratiba & results</h1>
-            <p>Mechi na matokeo kutoka Sports API.</p>
+            <p>
+              Mechi na matokeo kutoka Sports API.
+              {updatedDate
+                ? ` Live scores updated ${updatedDate.toLocaleTimeString("sw-TZ", { hour: "2-digit", minute: "2-digit" })}.`
+                : " Live scores bado hazijasawazishwa."}
+            </p>
           </div>
           <select aria-label="Panga mechi" value={sort} onChange={(e) => setSort(e.target.value)}>
             <option value="popular">Maarufu / LIVE</option>

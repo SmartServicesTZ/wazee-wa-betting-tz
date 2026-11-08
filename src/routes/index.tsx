@@ -25,6 +25,9 @@ type Match = {
   leagueName?: string;
   homeTeamLogo?: string;
   awayTeamLogo?: string;
+  homeScore?: number | null;
+  awayScore?: number | null;
+  updatedAt?: unknown;
   homeLogo?: string;
   awayLogo?: string;
   markets?: MatchMarket[];
@@ -383,6 +386,16 @@ function Home() {
                           · {formatTime(match.kickoffAt)}
                         </small>
                       </div>
+                      {LIVE_MATCH_STATUSES.has(String(match.status ?? "").toUpperCase()) &&
+                        match.homeScore != null &&
+                        match.awayScore != null && (
+                          <div className="gsb-live-score" aria-label="Alama ya moja kwa moja">
+                            LIVE{" "}
+                            <strong>
+                              {match.homeScore} - {match.awayScore}
+                            </strong>
+                          </div>
+                        )}
                       <div className="gsb-odds-area">
                         {options.length ? (
                           options.slice(0, 3).map((option, index) => {
