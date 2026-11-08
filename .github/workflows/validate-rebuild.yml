@@ -16,8 +16,9 @@ jobs:
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
       - name: Test automatic ticket target selection
-        run: node --test functions/scripts/auto-ticket-targets.test.mjs
+        run: node --test functions/scripts/*.test.mjs
       - run: node --check functions/scripts/auto-ticket.mjs
+      - run: node --check functions/scripts/live-sync.mjs
       - run: pnpm exec prettier --write "src/**/*.{ts,tsx,css}"
       - run: pnpm run build
       - name: Build Firebase Functions

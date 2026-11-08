@@ -1,0 +1,29 @@
+name: Sync live football scores
+on:
+  workflow_dispatch:
+  schedule:
+    # 72 fixture requests/day; leave quota headroom for the existing daily odds/ticket job.
+    - cron: "*/20 * * * *"
+permissions:
+  contents: read
+concurrency:
+  group: live-score-sync
+  cancel-in-progress: true
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Firebase Admin SDK
+        working-directory: functions
+        run: npm install --no-save
+      - name: Sync current-day live scores without generating tickets
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT || secrets.FIREBASE_SERVICES_ACCOUNT }}
+          SPORTS_API_KEY: ${{ secrets.SPORTS_API_KEY }}
+          SPORTS_API_BASE_URL: ${{ secrets.SPORTS_API_BASE_URL }}
+        run: node functions/scripts/auto-ticket.mjs --sync-live-only
