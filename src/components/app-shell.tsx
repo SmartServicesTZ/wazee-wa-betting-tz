@@ -1,5 +1,14 @@
 import { Link } from "@tanstack/react-router";
-import { Bell, Home, ListPlus, ShieldCheck, Trophy, UserRound, Users } from "lucide-react";
+import {
+  CircleDot,
+  ExternalLink,
+  Home,
+  ListPlus,
+  ShieldCheck,
+  Trophy,
+  UserRound,
+  Users,
+} from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { getUserProfile } from "../lib/firestore";
 import { PredictorBadge } from "./predictor-badge";
@@ -14,10 +23,12 @@ type PublicProfileSummary = {
   winRate?: number;
   settledTicketCount?: number;
 };
+
 export function AppShell({ children, user }: { children: ReactNode; user?: ShellUser | null }) {
   const [adminRole, setAdminRole] = useState(false);
   const [publicProfile, setPublicProfile] = useState<PublicProfileSummary | null>(null);
   const uid = user?.uid;
+
   useEffect(() => {
     let active = true;
     if (!uid) {
@@ -27,6 +38,7 @@ export function AppShell({ children, user }: { children: ReactNode; user?: Shell
         active = false;
       };
     }
+
     getUserProfile(uid)
       .then((profile) => {
         if (active) {
@@ -37,50 +49,61 @@ export function AppShell({ children, user }: { children: ReactNode; user?: Shell
       .catch(() => {
         if (active) setAdminRole(false);
       });
+
     return () => {
       active = false;
     };
   }, [uid]);
+
   return (
     <div className="site-shell">
       <header className="topbar">
-        <Link to="/" className="brand">
-          <span className="brand-mark">W</span>
+        <Link to="/" className="brand" aria-label="Wazee wa Betting TZ — nyumbani">
+          <span className="brand-mark" aria-hidden="true">
+            W
+          </span>
           <span>
             <b>WAZEE WA</b>
             <small>BETTING TZ</small>
           </span>
         </Link>
-        <nav className="top-nav">
-          <Link to="/">Nyumbani</Link>
-          <Link to="/matches">Mechi</Link>
-          <Link to="/create-ticket">Tengeneza mkeka</Link>
-          <Link to="/community">Jamii</Link>
-          <Link to="/leaderboard">Leaderboard</Link>
+
+        <nav className="top-nav" aria-label="Menyu kuu">
+          <Link to="/" title="Nyumbani">
+            <Home size={15} aria-hidden="true" /> Nyumbani
+          </Link>
+          <Link to="/matches" title="Mechi">
+            <Trophy size={15} aria-hidden="true" /> Mechi
+          </Link>
+          <Link to="/community" title="Jamii">
+            <Users size={15} aria-hidden="true" /> Jamii
+          </Link>
+          <Link to="/create-ticket" title="Tengeneza mkeka">
+            <ListPlus size={15} aria-hidden="true" /> Tengeneza mkeka
+          </Link>
+          <Link to="/leaderboard" title="Leaderboard">
+            <CircleDot size={15} aria-hidden="true" /> Ubora
+          </Link>
+          {adminRole && (
+            <Link to="/admin" className="admin-entry" title="Dashibodi ya msimamizi">
+              <ShieldCheck size={15} aria-hidden="true" /> Admin
+            </Link>
+          )}
           <a
             href="https://chat.whatsapp.com/CNhZ2jsVkgw0Lu0zaZHrlJ?s=cl&p=a&iam=2"
             target="_blank"
             rel="noopener noreferrer"
+            title="Jiunge na WhatsApp"
           >
-            WhatsApp
+            <ExternalLink size={14} aria-hidden="true" /> WhatsApp
           </a>
-          {adminRole && (
-            <Link to="/admin" className="admin-entry">
-              <ShieldCheck size={15} /> Admin Dashboard
-            </Link>
-          )}
         </nav>
+
         <div className="top-user">
-          <Bell size={19} />
-          {adminRole && (
-            <Link to="/admin" className="admin-entry">
-              <ShieldCheck size={15} /> Admin
-            </Link>
-          )}
           {user ? (
-            <Link to="/dashboard" className="user-chip">
+            <Link to="/dashboard" className="user-chip" aria-label="Fungua akaunti yako">
               {user.photoURL ? (
-                <img src={user.photoURL} />
+                <img src={user.photoURL} alt="" />
               ) : (
                 <span>{user.displayName?.[0] ?? "U"}</span>
               )}
@@ -93,33 +116,41 @@ export function AppShell({ children, user }: { children: ReactNode; user?: Shell
               />
             </Link>
           ) : (
-            <div className="gsb-auth-actions">
-              <Link to="/register">REGISTER</Link>
-              <Link to="/login">LOGIN</Link>
+            <div className="gsb-auth-actions" aria-label="Ingia au jisajili">
+              <Link to="/register">Jisajili</Link>
+              <Link to="/login">Ingia</Link>
             </div>
           )}
         </div>
       </header>
+
+      <aside className="site-safety-note" aria-label="Taarifa kuhusu coin na malipo">
+        <ShieldCheck size={16} aria-hidden="true" />
+        <span>Coins ni za majaribio tu. Kwa sasa hakuna kuweka au kutoa fedha halisi.</span>
+        <Link to="/terms">Soma maelezo</Link>
+      </aside>
+
       <main>{children}</main>
-      <nav className="bottom-nav">
-        <Link to="/">
-          <Home size={20} />
+
+      <nav className="bottom-nav" aria-label="Menyu ya simu">
+        <Link to="/" title="Nyumbani">
+          <Home size={20} aria-hidden="true" />
           <span>Nyumbani</span>
         </Link>
-        <Link to="/matches">
-          <Trophy size={20} />
+        <Link to="/matches" title="Mechi">
+          <Trophy size={20} aria-hidden="true" />
           <span>Mechi</span>
         </Link>
-        <Link to="/create-ticket">
-          <ListPlus size={20} />
+        <Link to="/create-ticket" title="Tengeneza mkeka">
+          <ListPlus size={20} aria-hidden="true" />
           <span>Jenga</span>
         </Link>
-        <Link to="/community">
-          <Users size={20} />
+        <Link to="/community" title="Jamii">
+          <Users size={20} aria-hidden="true" />
           <span>Jamii</span>
         </Link>
-        <Link to={user ? "/dashboard" : "/login"}>
-          <UserRound size={20} />
+        <Link to={user ? "/dashboard" : "/login"} title="Akaunti">
+          <UserRound size={20} aria-hidden="true" />
           <span>Akaunti</span>
         </Link>
       </nav>

@@ -8,6 +8,7 @@
     { "path": "/leaderboard", "title": "Leaderboard" },
     { "path": "/login", "title": "Ingia" },
     { "path": "/register", "title": "Jisajili" },
+    { "path": "/terms", "title": "Masharti" },
     { "path": "/admin", "title": "Admin" },
     { "path": "/tickets/$ticketId", "title": "Ticket details" },
     { "path": "/users/$username", "title": "Profile" }
