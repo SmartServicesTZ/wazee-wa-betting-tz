@@ -13,6 +13,7 @@ import {
   type TicketComment,
 } from "../lib/firestore";
 import { shareTicketLink } from "../lib/share";
+import { BrandIdentity } from "./brand-identity";
 
 type TicketFeedCardProps = {
   ticket: PublicTicket;
@@ -146,16 +147,27 @@ export function TicketFeedCard({
             )}
           </span>
           <span className="ticket-feed-author-copy">
-            <b>{ticket.creatorName || "Mwanajamii"}</b>
-            <small>
-              @{ticket.creatorUsername || "mwanajamii"} · {formatPostedAt(ticket.createdAt)}
-            </small>
+            {ticket.automated ? (
+              <BrandIdentity />
+            ) : (
+              <>
+                <b>{ticket.creatorName || "Mwanajamii"}</b>
+                <small>
+                  @{ticket.creatorUsername || "mwanajamii"} · {formatPostedAt(ticket.createdAt)}
+                </small>
+              </>
+            )}
           </span>
           <span className={`status status-${String(ticket.status ?? "PENDING").toLowerCase()}`}>
             {ticket.status ?? "PENDING"}
           </span>
         </div>
         <h3>{ticket.title || "Mkeka wa jamii"}</h3>
+        {ticket.automated && (
+          <p className="brand-disclaimer">
+            Mkeka wa mfumo — Wazee wa Betting TZ. Hakuna uhakika wa ushindi. Cheza kwa uwajibikaji.
+          </p>
+        )}
         {!compact && ticket.description && (
           <p className="ticket-feed-description">{ticket.description}</p>
         )}

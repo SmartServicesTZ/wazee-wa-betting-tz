@@ -38,10 +38,10 @@ import {
 } from "firebase/firestore";
 import { toast } from "sonner";
 import { AppShell } from "../components/app-shell";
+import { TeamLogo } from "../components/team-logo";
 import {
   adminDashboard,
   adminCreateTicket,
-  adminGenerateAutoTicket,
   adminMatchData,
   adminSetAutoConfig,
   adminSetUserRole,
@@ -402,22 +402,6 @@ function Admin() {
                 } catch (error) {
                   toast.error(
                     error instanceof Error ? error.message : "Imeshindikana kuhifadhi config.",
-                  );
-                }
-              }}
-              onGenerate={async () => {
-                try {
-                  const result = await adminGenerateAutoTicket();
-                  if (result.created)
-                    toast.success(`Automatic ticket imetengenezwa: ${result.selections} mechi.`);
-                  else
-                    toast.info(
-                      `Hakuna ticket iliyotengenezwa: ${result.reason ?? "hakuna qualifying data"}.`,
-                    );
-                  await load();
-                } catch (error) {
-                  toast.error(
-                    error instanceof Error ? error.message : "Automatic ticket imeshindikana.",
                   );
                 }
               }}
@@ -890,13 +874,11 @@ function MatchesSection({
   config,
   logs,
   onConfig,
-  onGenerate,
 }: {
   matches: AdminMatch[];
   config: AutoConfig;
   logs: Row[];
   onConfig: (config: AutoConfig) => Promise<void>;
-  onGenerate: () => Promise<void>;
 }) {
   const [draft, setDraft] = useState(config);
   const [saving, setSaving] = useState(false);
@@ -935,8 +917,9 @@ function MatchesSection({
             {matches.length ? (
               matches.slice(0, 80).map((match) => (
                 <div className="admin-list-row" key={match.id}>
-                  <div className="admin-avatar small">
-                    <Trophy size={15} />
+                  <div className="team-line">
+                    <TeamLogo name={match.homeTeamName} src={match.homeTeamLogo} />
+                    <TeamLogo name={match.awayTeamName} src={match.awayTeamLogo} />
                   </div>
                   <div className="admin-list-main">
                     <div>
@@ -1062,21 +1045,48 @@ function MatchesSection({
             <button className="admin-outline" disabled={saving} onClick={() => void save()}>
               {saving ? "Inahifadhi..." : "Hifadhi policy"}
             </button>
-            <button className="admin-sync" onClick={() => void onGenerate()}>
-              Tengeneza sasa
-            </button>
+            <p className="admin-schedule-note">
+              Ratiba ya kiotomatiki: kila siku saa 01:15 EAT. Mikeka 4 hujaribiwa; zilizokosa odds
+              hubaki wazi kwenye history.
+            </p>
           </div>
           <div className="automation-history">
             <span className="admin-kicker">AUTOMATION HISTORY</span>
             {logs
-              .filter((row) => String(row.type ?? "").includes("auto-ticket"))
+              .filter((row) => row.type === "auto-ticket-target")
               .slice(0, 5)
-              .map((row) => (
-                <div key={row.id}>
-                  <b>{row.ok === false ? "FAILED" : "OK"}</b>
-                  <span>{String(row.error ?? fmt(row.createdAt))}</span>
-                </div>
-              ))}
+              .map((row) => {
+                const result = (row.result ?? {}) as {
+                  created?: boolean;
+                  reason?: string;
+                  totalOdds?: number;
+                  target?: number;
+                };
+                const unavailable = Boolean(
+                  result.reason?.startsWith("no-") ||
+                  result.reason === "not-enough-qualifying-selections",
+                );
+                const state = result.created
+                  ? "IMETENGENEZWA"
+                  : result.reason === "already-created"
+                    ? "TAYARI IMETENGENEZWA"
+                    : unavailable
+                      ? "HAIKUPATIKANA"
+                      : row.ok === false
+                        ? "IMESHINDWA"
+                        : "HAIKUPATIKANA";
+                return (
+                  <div key={row.id}>
+                    <b>{state}</b>
+                    <span>
+                      Target {String(row.targetOdds ?? result.target ?? "—")} ·{" "}
+                      {result.created
+                        ? `actual ${Number(result.totalOdds ?? 0).toFixed(2)}`
+                        : String(result.reason ?? row.error ?? fmt(row.createdAt))}
+                    </span>
+                  </div>
+                );
+              })}
           </div>
         </div>
       </div>

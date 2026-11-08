@@ -11,10 +11,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-        with: {version: 10}
+        with: { version: 10 }
       - uses: actions/setup-node@v4
-        with: {node-version: 22, cache: pnpm}
+        with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
+      - name: Test automatic ticket target selection
+        run: node --test functions/scripts/auto-ticket-targets.test.mjs
+      - run: node --check functions/scripts/auto-ticket.mjs
       - run: pnpm exec prettier --write "src/**/*.{ts,tsx,css}"
       - run: pnpm run build
       - name: Build Firebase Functions

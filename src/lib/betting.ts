@@ -1,6 +1,14 @@
 export type TicketStatus = "PENDING" | "WON" | "LOST" | "VOID" | "CANCELLED";
 export type SelectionStatus = TicketStatus;
-export type MarketKey = "1X2" | "DOUBLE_CHANCE" | "OVER_UNDER" | "BTTS" | "DRAW_NO_BET" | "HANDICAP" | "HALF_TIME" | "FULL_TIME";
+export type MarketKey =
+  | "1X2"
+  | "DOUBLE_CHANCE"
+  | "OVER_UNDER"
+  | "BTTS"
+  | "DRAW_NO_BET"
+  | "HANDICAP"
+  | "HALF_TIME"
+  | "FULL_TIME";
 
 export type Selection = {
   id?: string;
@@ -12,6 +20,8 @@ export type Selection = {
   status?: SelectionStatus;
   homeTeam: string;
   awayTeam: string;
+  homeTeamLogo?: string | null;
+  awayTeamLogo?: string | null;
   kickoffAt: string;
   leagueName?: string;
 };
@@ -34,10 +44,14 @@ export function deriveTicketStatus(statuses: SelectionStatus[]): TicketStatus {
   return "WON";
 }
 
-
-export type PredictorBadge = { color: "red" | "blue" | "green" | "neutral"; label: string; eligible: boolean };
+export type PredictorBadge = {
+  color: "red" | "blue" | "green" | "neutral";
+  label: string;
+  eligible: boolean;
+};
 export function getPredictorBadge(winRate: number, settledTicketCount: number): PredictorBadge {
-  if (settledTicketCount < 10) return { color: "neutral", label: "Takwimu zinaendelea", eligible: false };
+  if (settledTicketCount < 10)
+    return { color: "neutral", label: "Takwimu zinaendelea", eligible: false };
   if (winRate < 35) return { color: "red", label: "Matokeo mabaya", eligible: true };
   if (winRate < 65) return { color: "blue", label: "Matokeo ya wastani", eligible: true };
   return { color: "green", label: "Matokeo mazuri sana", eligible: true };

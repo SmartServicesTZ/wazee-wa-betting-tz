@@ -4,6 +4,7 @@ import { CalendarDays, ChevronDown, ChevronUp, Search, Trophy } from "lucide-rea
 import type { User } from "firebase/auth";
 import { AppShell } from "../components/app-shell";
 import { TicketFeedCard } from "../components/ticket-feed-card";
+import { TeamLogo } from "../components/team-logo";
 import {
   listCurrentAndUpcomingMatches,
   listPublicTickets,
@@ -24,9 +25,13 @@ type Match = {
   leagueName?: string;
   homeTeamLogo?: string;
   awayTeamLogo?: string;
+  homeScore?: number | null;
+  awayScore?: number | null;
+  updatedAt?: unknown;
   homeLogo?: string;
   awayLogo?: string;
   markets?: MatchMarket[];
+  featured?: boolean;
 };
 
 const LIVE_MATCH_STATUSES = new Set([
@@ -50,24 +55,8 @@ const MARKET_TABS = [
 ] as const;
 
 function TeamBadge({ name, src }: { name: string; src?: string }) {
-  return (
-    <span className="gsb-team-badge">
-      {src ? (
-        <img
-          src={src}
-          alt={name}
-          loading="lazy"
-          onError={(event) => {
-            event.currentTarget.style.display = "none";
-          }}
-        />
-      ) : (
-        <b>{name?.slice(0, 1) || "?"}</b>
-      )}
-    </span>
-  );
+  return <TeamLogo name={name} src={src} className="gsb-team-badge" />;
 }
-
 function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [matches, setMatches] = useState<Match[]>([]);
@@ -77,7 +66,7 @@ function Home() {
   const [error, setError] = useState("");
   const [tab, setTab] = useState<"LIVE" | "UPCOMING">("UPCOMING");
   const [day, setDay] = useState("ALL");
-  const [sort, setSort] = useState("TIME");
+  const [sort, setSort] = useState("POPULAR");
   const [market, setMarket] = useState("1X2");
   const [query, setQuery] = useState("");
   const [chosen, setChosen] = useState<Record<string, string>>({});
@@ -140,6 +129,20 @@ function Home() {
       rows.sort((a, b) => new Date(a.kickoffAt).getTime() - new Date(b.kickoffAt).getTime());
     if (sort === "LEAGUE")
       rows.sort((a, b) => String(a.leagueName ?? "").localeCompare(String(b.leagueName ?? "")));
+    if (sort === "POPULAR") {
+      const priority = (name = "") =>
+        /champions league|premier league|la liga|serie a|bundesliga|europa league|afcon|world cup/i.test(
+          name,
+        )
+          ? 1
+          : 0;
+      rows.sort(
+        (a, b) =>
+          Number(Boolean(b.featured)) - Number(Boolean(a.featured)) ||
+          priority(b.leagueName) - priority(a.leagueName) ||
+          new Date(a.kickoffAt).getTime() - new Date(b.kickoffAt).getTime(),
+      );
+    }
     return rows;
   }, [matches, tab, day, sort, query]);
 
@@ -286,6 +289,7 @@ function Home() {
             onChange={(event) => setSort(event.target.value)}
             aria-label="Panga mechi"
           >
+            <option value="POPULAR">Maarufu</option>
             <option value="TIME">Kwa muda</option>
             <option value="LEAGUE">Kwa ligi</option>
           </select>
@@ -382,6 +386,16 @@ function Home() {
                           · {formatTime(match.kickoffAt)}
                         </small>
                       </div>
+                      {LIVE_MATCH_STATUSES.has(String(match.status ?? "").toUpperCase()) &&
+                        match.homeScore != null &&
+                        match.awayScore != null && (
+                          <div className="gsb-live-score" aria-label="Alama ya moja kwa moja">
+                            LIVE{" "}
+                            <strong>
+                              {match.homeScore} - {match.awayScore}
+                            </strong>
+                          </div>
+                        )}
                       <div className="gsb-odds-area">
                         {options.length ? (
                           options.slice(0, 3).map((option, index) => {

@@ -2243,3 +2243,88 @@ label {
     animation: none !important;
   }
 }
+
+.team-logo {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  display: inline-grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--surface-3);
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 800;
+}
+.team-logo img {
+  width: 100%;
+  height: 100%;
+  padding: 4px;
+  object-fit: contain;
+}
+.match-head .team-logo {
+  margin-right: 7px;
+  vertical-align: middle;
+}
+.team-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.brand-verified {
+  display: inline-flex;
+  vertical-align: middle;
+  color: #2588ff;
+  margin-left: 4px;
+}
+.brand-disclaimer {
+  color: var(--muted-2);
+  font-size: 12px;
+}
+
+.market-accordion {
+  margin-top: 10px;
+}
+.market-accordion > summary {
+  cursor: pointer;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 700;
+  padding: 8px 0;
+}
+.market-accordion[open] > summary {
+  margin-bottom: 6px;
+}
+.brand-identity {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.brand-identity small {
+  width: 100%;
+  color: var(--muted-2);
+  font-size: 11px;
+}
+
+.gsb-live-score {
+  margin: 4px 0 7px;
+  color: #ff6874;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+.gsb-live-score strong {
+  margin-left: 5px;
+  color: var(--text);
+  font-size: 14px;
+}
+.admin-schedule-note {
+  align-self: center;
+  margin: 0;
+  color: var(--muted-2);
+  font-size: 12px;
+  line-height: 1.5;
+}
