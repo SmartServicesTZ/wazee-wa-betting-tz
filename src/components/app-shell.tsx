@@ -5,30 +5,124 @@ import { getUserProfile } from "../lib/firestore";
 import { PredictorBadge } from "./predictor-badge";
 
 type ShellUser = { uid: string; displayName?: string | null; photoURL?: string | null };
+type PublicProfileSummary = {
+  role?: string;
+  username?: string;
+  displayName?: string;
+  photoURL?: string | null;
+  accountVerified?: boolean;
+  winRate?: number;
+  settledTicketCount?: number;
+};
 export function AppShell({ children, user }: { children: ReactNode; user?: ShellUser | null }) {
   const [adminRole, setAdminRole] = useState(false);
-  const [publicProfile, setPublicProfile] = useState<any>(null);
+  const [publicProfile, setPublicProfile] = useState<PublicProfileSummary | null>(null);
+  const uid = user?.uid;
   useEffect(() => {
     let active = true;
-    if (!user) {
+    if (!uid) {
       setAdminRole(false);
       setPublicProfile(null);
-      return () => { active = false; };
+      return () => {
+        active = false;
+      };
     }
-    getUserProfile(user.uid)
+    getUserProfile(uid)
       .then((profile) => {
-        if (active) { setAdminRole(profile?.role === "ADMIN" || profile?.role === "SUPER_ADMIN"); setPublicProfile(profile); }
+        if (active) {
+          setAdminRole(profile?.role === "ADMIN" || profile?.role === "SUPER_ADMIN");
+          setPublicProfile(profile as PublicProfileSummary | null);
+        }
       })
-      .catch(() => { if (active) setAdminRole(false); });
-    return () => { active = false; };
-  }, [user?.uid]);
-  return <div className="site-shell">
-    <header className="topbar">
-      <Link to="/" className="brand"><span className="brand-mark">W</span><span><b>WAZEE WA</b><small>BETTING TZ</small></span></Link>
-      <nav className="top-nav"><Link to="/">Nyumbani</Link><Link to="/matches">Mechi</Link><Link to="/create-ticket">Tengeneza mkeka</Link><Link to="/community">Jamii</Link><Link to="/leaderboard">Leaderboard</Link><a href="https://chat.whatsapp.com/CNhZ2jsVkgw0Lu0zaZHrlJ?s=cl&p=a&iam=2" target="_blank" rel="noopener noreferrer">WhatsApp</a>{adminRole && <Link to="/admin" className="admin-entry"><ShieldCheck size={15}/> Admin Dashboard</Link>}</nav>
-      <div className="top-user"><Bell size={19}/>{adminRole && <Link to="/admin" className="admin-entry"><ShieldCheck size={15}/> Admin</Link>}{user ? <Link to="/dashboard" className="user-chip">{user.photoURL ? <img src={user.photoURL}/> : <span>{user.displayName?.[0] ?? "U"}</span>}<b>{user.displayName ?? "Akaunti"}</b><PredictorBadge compact accountVerified={!!publicProfile} winRate={publicProfile?.winRate ?? 0} settledTicketCount={publicProfile?.settledTicketCount ?? 0}/></Link> : <div className="gsb-auth-actions"><Link to="/register">REGISTER</Link><Link to="/login">LOGIN</Link></div>}</div>
-    </header>
-    <main>{children}</main>
-    <nav className="bottom-nav"><Link to="/"><Home size={20}/><span>Nyumbani</span></Link><Link to="/matches"><Trophy size={20}/><span>Mechi</span></Link><Link to="/create-ticket"><ListPlus size={20}/><span>Jenga</span></Link><a href="https://chat.whatsapp.com/CNhZ2jsVkgw0Lu0zaZHrlJ?s=cl&p=a&iam=2" target="_blank" rel="noopener noreferrer"><Users size={20}/><span>WhatsApp</span></a><Link to={user ? "/dashboard" : "/login"}><UserRound size={20}/><span>Akaunti</span></Link></nav>
-  </div>;
+      .catch(() => {
+        if (active) setAdminRole(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [uid]);
+  return (
+    <div className="site-shell">
+      <header className="topbar">
+        <Link to="/" className="brand">
+          <span className="brand-mark">W</span>
+          <span>
+            <b>WAZEE WA</b>
+            <small>BETTING TZ</small>
+          </span>
+        </Link>
+        <nav className="top-nav">
+          <Link to="/">Nyumbani</Link>
+          <Link to="/matches">Mechi</Link>
+          <Link to="/create-ticket">Tengeneza mkeka</Link>
+          <Link to="/community">Jamii</Link>
+          <Link to="/leaderboard">Leaderboard</Link>
+          <a
+            href="https://chat.whatsapp.com/CNhZ2jsVkgw0Lu0zaZHrlJ?s=cl&p=a&iam=2"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            WhatsApp
+          </a>
+          {adminRole && (
+            <Link to="/admin" className="admin-entry">
+              <ShieldCheck size={15} /> Admin Dashboard
+            </Link>
+          )}
+        </nav>
+        <div className="top-user">
+          <Bell size={19} />
+          {adminRole && (
+            <Link to="/admin" className="admin-entry">
+              <ShieldCheck size={15} /> Admin
+            </Link>
+          )}
+          {user ? (
+            <Link to="/dashboard" className="user-chip">
+              {user.photoURL ? (
+                <img src={user.photoURL} />
+              ) : (
+                <span>{user.displayName?.[0] ?? "U"}</span>
+              )}
+              <b>{user.displayName ?? "Akaunti"}</b>
+              <PredictorBadge
+                compact
+                accountVerified={!!publicProfile}
+                winRate={publicProfile?.winRate ?? 0}
+                settledTicketCount={publicProfile?.settledTicketCount ?? 0}
+              />
+            </Link>
+          ) : (
+            <div className="gsb-auth-actions">
+              <Link to="/register">REGISTER</Link>
+              <Link to="/login">LOGIN</Link>
+            </div>
+          )}
+        </div>
+      </header>
+      <main>{children}</main>
+      <nav className="bottom-nav">
+        <Link to="/">
+          <Home size={20} />
+          <span>Nyumbani</span>
+        </Link>
+        <Link to="/matches">
+          <Trophy size={20} />
+          <span>Mechi</span>
+        </Link>
+        <Link to="/create-ticket">
+          <ListPlus size={20} />
+          <span>Jenga</span>
+        </Link>
+        <Link to="/community">
+          <Users size={20} />
+          <span>Jamii</span>
+        </Link>
+        <Link to={user ? "/dashboard" : "/login"}>
+          <UserRound size={20} />
+          <span>Akaunti</span>
+        </Link>
+      </nav>
+    </div>
+  );
 }
