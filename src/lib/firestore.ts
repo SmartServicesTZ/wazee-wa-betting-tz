@@ -237,7 +237,7 @@ export async function listCurrentAndUpcomingMatches(max = 150) {
       query(
         collection(firestore, "matches"),
         where("status", "in", LIVE_MATCH_STATUSES),
-        limit(50),
+        limit(100),
       ),
     ),
   ]);
@@ -259,7 +259,7 @@ export async function listMatches(max = 100) {
       query(
         collection(firestore, "matches"),
         where("status", "in", LIVE_MATCH_STATUSES),
-        limit(50),
+        limit(100),
       ),
     ),
   ]);
