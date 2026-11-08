@@ -33,7 +33,7 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Build production bundle
         run: pnpm run build
-      - name: Create static Pages entrypoint from SSR HTML
+      - name: Create static Pages entrypoints from SSR HTML
         shell: bash
         run: |
           set -euo pipefail
@@ -66,7 +66,19 @@ jobs:
           def prepare(html):
               html = re.sub(r'<link[^>]+(?:/src/styles\.css|/@tanstack-start/styles\.css|/@id/virtual:tanstack-start-dev-client-entry)[^>]*>', '', html)
               html = re.sub(r'<script[^>]+/@id/virtual:tanstack-start-dev-client-entry[^>]*>\s*</script>', '', html)
-              html = html.replace('</head>', f'<base href="{base}/" /><link rel="stylesheet" href="{base}/assets/{css}" /><script type="module" async src="{base}/assets/{entry}"></script></head>')
+              restore_route = '''<script>
+              (function () {
+                try {
+                  var params = new URLSearchParams(location.search);
+                  var savedPath = params.get('__wbt_path');
+                  if (savedPath) {
+                    var target = new URL(savedPath, location.origin);
+                    history.replaceState(null, '', target.pathname + target.search + target.hash);
+                  }
+                } catch (error) {}
+              })();
+              </script>'''
+              html = html.replace('</head>', f'<base href="{base}/" /><link rel="stylesheet" href="{base}/assets/{css}" />{restore_route}<script type="module" async src="{base}/assets/{entry}"></script></head>')
               return html
 
           for route in routes:
@@ -75,8 +87,21 @@ jobs:
               target.parent.mkdir(parents=True, exist_ok=True)
               target.write_text(html)
 
-          # Keep a root fallback for unknown/dynamic routes while preserving route-specific pages above.
-          Path('.output/public/404.html').write_text(Path('.output/public/index.html').read_text())
+          # GitHub Pages serves 404.html for dynamic paths; save the requested route and restore
+          # it before the client router starts on the homepage document.
+          not_found = Path('.output/public/index.html').read_text()
+          redirect = '''<script>
+          (function () {
+            try {
+              var requestedPath = location.pathname + location.search + location.hash;
+              location.replace('/wazee-wa-betting-tz/?__wbt_path=' + encodeURIComponent(requestedPath));
+            } catch (error) {
+              location.replace('/wazee-wa-betting-tz/');
+            }
+          })();
+          </script>'''
+          not_found = not_found.replace('</head>', f'{redirect}</head>')
+          Path('.output/public/404.html').write_text(not_found)
           PY
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
