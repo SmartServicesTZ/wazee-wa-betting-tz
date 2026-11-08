@@ -93,6 +93,7 @@ function Matches() {
   const [matchesError, setMatchesError] = useState("");
   const refreshMatches = useCallback(async () => {
     setRefreshing(true);
+    setMatchesError("");
     const [matchRows, predictionRows, summary] = await Promise.all([
       listMatches(100).catch((error) => {
         setMatchesError(error instanceof Error ? error.message : "Imeshindikana kusoma mechi kutoka Firebase.");
@@ -102,7 +103,6 @@ function Matches() {
       getAiPredictionSummary().catch(() => ({})),
     ]);
     setMatches(matchRows as MatchRow[]);
-    if (matchRows.length) setMatchesError("");
     setAiPredictions(predictionRows as MatchRow[]);
     setPredictionSummary(summary as PredictionSummary);
     setRefreshing(false);
