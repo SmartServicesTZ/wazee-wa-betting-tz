@@ -586,6 +586,7 @@ async function generateDailyTickets() {
   return { results };
 }
 
+// Source changes can trigger one quota-light live-only sync from GitHub Actions.
 async function syncLiveFixtures() {
   const date = dateInTanzania();
   const previouslyLiveSnapshot = await db
