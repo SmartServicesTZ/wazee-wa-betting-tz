@@ -23,3 +23,7 @@ Redesign hii inatumia design system moja ya mobile-first kwenye routes zote zili
 - `src/routes/*`: existing page flows and Firebase-backed interactions preserved.
 - `src/styles.css`: single source of truth for visual system, responsive breakpoints and accessibility.
 - `public/manus-routes.json`: route manifest for preview tooling and deep-link verification.
+
+## Live scores extension
+
+Live scores zitatumia collection ya sasa ya Firestore `matches`, kwa fields zilizopo za `status`, `homeScore`, `awayScore`, `elapsed`/`minute` na `period`; hakuna schema mpya, API key mpya au data ya kubuni. Homepage itaonyesha dashboard ya “Matokeo ya moja kwa moja” yenye cards za mechi live, score, kipindi/dakika, league, count ya live matches, refresh ya mkono na last-updated label. Data itasomwa tena kila sekunde 30 ili score ibaki karibu na Sports API sync ya server, huku loading/empty/error states zikionekana wazi na layout ikishuka kutoka columns 3 hadi 2 hadi 1 kwenye tablet/simu.
