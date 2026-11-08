@@ -1,6 +1,14 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { CalendarDays, ChevronDown, ChevronUp, Search, Trophy } from "lucide-react";
+import {
+  CalendarDays,
+  ChevronDown,
+  ChevronUp,
+  Radio,
+  RefreshCw,
+  Search,
+  Trophy,
+} from "lucide-react";
 import type { User } from "firebase/auth";
 import { AppShell } from "../components/app-shell";
 import { TicketFeedCard } from "../components/ticket-feed-card";
@@ -26,6 +34,11 @@ type Match = {
   awayTeamLogo?: string;
   homeLogo?: string;
   awayLogo?: string;
+  homeScore?: number | string | null;
+  awayScore?: number | string | null;
+  elapsed?: number | string | null;
+  minute?: number | string | null;
+  period?: string | null;
   markets?: MatchMarket[];
 };
 
@@ -48,6 +61,21 @@ const MARKET_TABS = [
   ["BTTS", "Timu zote kufunga"],
   ["HALF_TIME", "Kipindi cha kwanza"],
 ] as const;
+
+function isLiveMatch(match: Match) {
+  return LIVE_MATCH_STATUSES.has(String(match.status ?? "").toUpperCase());
+}
+
+function liveStatusLabel(match: Match) {
+  const status = String(match.status ?? "LIVE").toUpperCase();
+  const minute = match.elapsed ?? match.minute;
+  if (minute !== null && minute !== undefined && String(minute).trim()) {
+    return `${minute}'`;
+  }
+  if (status === "HT") return "HT";
+  if (status === "SUSP") return "SUSP";
+  return "LIVE";
+}
 
 function TeamBadge({ name, src }: { name: string; src?: string }) {
   return (
@@ -84,6 +112,8 @@ function Home() {
   const [highlightsOpen, setHighlightsOpen] = useState(true);
   const [searchOpen, setSearchOpen] = useState(false);
   const [slipOpen, setSlipOpen] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => subscribeToAuth(setUser), []);
 
@@ -91,7 +121,10 @@ function Home() {
     let active = true;
     listCurrentAndUpcomingMatches(150)
       .then((rows) => {
-        if (active) setMatches(rows as Match[]);
+        if (active) {
+          setMatches(rows as Match[]);
+          setLastUpdated(new Date());
+        }
       })
       .catch((reason) => {
         if (active)
@@ -113,6 +146,20 @@ function Home() {
     return () => {
       active = false;
     };
+  }, []);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      listCurrentAndUpcomingMatches(150)
+        .then((rows) => {
+          setMatches(rows as Match[]);
+          setLastUpdated(new Date());
+          setError("");
+        })
+        .catch(() => undefined);
+    }, 30_000);
+
+    return () => window.clearInterval(interval);
   }, []);
 
   const visible = useMemo(() => {
@@ -142,6 +189,8 @@ function Home() {
       rows.sort((a, b) => String(a.leagueName ?? "").localeCompare(String(b.leagueName ?? "")));
     return rows;
   }, [matches, tab, day, sort, query]);
+
+  const liveMatches = useMemo(() => matches.filter(isLiveMatch), [matches]);
 
   const selections = useMemo(
     () =>
@@ -176,6 +225,20 @@ function Home() {
     match.markets?.find((item) => item.market === "FULL_TIME");
   const formatTime = (date: string) =>
     new Date(date).toLocaleTimeString("sw-TZ", { hour: "2-digit", minute: "2-digit" });
+
+  const refreshScores = async () => {
+    setRefreshing(true);
+    try {
+      const rows = await listCurrentAndUpcomingMatches(150);
+      setMatches(rows as Match[]);
+      setLastUpdated(new Date());
+      setError("");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Imeshindikana kusasisha scores.");
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   return (
     <AppShell user={user}>
@@ -225,6 +288,89 @@ function Home() {
               {tab === "LIVE"
                 ? "Hakuna mechi zinazoendelea sasa."
                 : "Hakuna mechi zijazo kwenye kichujio hiki."}
+            </div>
+          )}
+        </section>
+
+        <section className="live-scores-section" aria-labelledby="live-scores-heading">
+          <div className="live-scores-header">
+            <div>
+              <span className="gsb-section-label live-scores-kicker">
+                <Radio size={13} /> LIVE CENTRE
+              </span>
+              <h2 id="live-scores-heading">Matokeo ya moja kwa moja</h2>
+              <p>Fuata score za mechi zinazoendelea bila kuondoka kwenye community.</p>
+            </div>
+            <button
+              className="live-scores-refresh"
+              onClick={refreshScores}
+              disabled={refreshing}
+              aria-label="Sasisha live scores"
+            >
+              <RefreshCw size={15} className={refreshing ? "spin" : ""} />
+              {refreshing ? "Inasasisha" : "Sasisha"}
+            </button>
+          </div>
+          <div className="live-scores-meta">
+            <span>
+              <i className="live-dot" />
+              {liveMatches.length} {liveMatches.length === 1 ? "mechi live" : "mechi live"}
+            </span>
+            <span>
+              {lastUpdated
+                ? `Imesasishwa ${lastUpdated.toLocaleTimeString("sw-TZ", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}`
+                : "Inatafuta updates..."}
+            </span>
+            <Link to="/matches">Ratiba yote</Link>
+          </div>
+          {loading ? (
+            <div className="live-scores-empty">Inapakia scores za live...</div>
+          ) : liveMatches.length ? (
+            <div className="live-score-grid">
+              {liveMatches.slice(0, 6).map((match) => (
+                <article className="live-score-card" key={match.id}>
+                  <div className="live-score-card-top">
+                    <span>{match.leagueName || "Football"}</span>
+                    <b>
+                      <i className="live-dot" /> {liveStatusLabel(match)}
+                    </b>
+                  </div>
+                  <div className="live-score-teams">
+                    <div className="live-score-team">
+                      <TeamBadge
+                        name={match.homeTeamName}
+                        src={match.homeTeamLogo || match.homeLogo}
+                      />
+                      <strong>{match.homeTeamName}</strong>
+                    </div>
+                    <div className="live-score-numbers" aria-label="Score">
+                      <b>{match.homeScore ?? "–"}</b>
+                      <span>:</span>
+                      <b>{match.awayScore ?? "–"}</b>
+                    </div>
+                    <div className="live-score-team away">
+                      <TeamBadge
+                        name={match.awayTeamName}
+                        src={match.awayTeamLogo || match.awayLogo}
+                      />
+                      <strong>{match.awayTeamName}</strong>
+                    </div>
+                  </div>
+                  <div className="live-score-card-foot">
+                    <span>Live score kutoka Sports API</span>
+                    <span>{match.period || "Inachezwa"}</span>
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="live-scores-empty">
+              <Radio size={25} />
+              <b>Hakuna mechi live kwa sasa.</b>
+              <span>Scores zitaonekana hapa pindi mechi zinapoanza.</span>
             </div>
           )}
         </section>
