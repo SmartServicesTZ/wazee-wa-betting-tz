@@ -10,7 +10,7 @@ import {
 import { useEffect, type ReactNode } from "react";
 import { Toaster } from "sonner";
 import appCss from "../styles.css?url";
-import refreshCss from "../site-refresh.css?url";
+import refreshCss from "../site-refresh.css?inline";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   head: () => ({
@@ -22,7 +22,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     ],
     links: [
       { rel: "stylesheet", href: appCss },
-      { rel: "stylesheet", href: refreshCss },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       {
@@ -50,6 +49,7 @@ function RootShell({ children }: { children: ReactNode }) {
     <html lang="sw">
       <head>
         <HeadContent />
+        <style dangerouslySetInnerHTML={{ __html: refreshCss }} />
       </head>
       <body>
         {children}
