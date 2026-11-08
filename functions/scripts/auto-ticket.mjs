@@ -98,6 +98,8 @@ function normalizeFixture(raw) {
     awayId: String(t.away.id),
     homeTeamName: t.home.name ?? "Unknown",
     awayTeamName: t.away.name ?? "Unknown",
+    homeTeamLogo: t.home.logo ?? null,
+    awayTeamLogo: t.away.logo ?? null,
     kickoffAt: new Date(kickoff).toISOString(),
     status: f.status?.short ?? "UNKNOWN",
     homeScore: g?.home ?? null,

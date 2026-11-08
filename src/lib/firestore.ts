@@ -50,6 +50,8 @@ export type PublicTicket = {
   status: string;
   selectionCount: number;
   createdAt?: unknown;
+  automated?: boolean;
+  automatedDisclosure?: string;
 };
 
 export type TicketComment = {

@@ -280,9 +280,12 @@ export async function adminDashboard(): Promise<AdminDashboardData> {
   ]);
   const users = usersSnap.docs.map((item) => {
     const value = item.data();
-    const created = value.createdAt && typeof value.createdAt === "object" && "toDate" in value.createdAt
-      ? (value.createdAt as { toDate: () => Date }).toDate().toISOString()
-      : value.createdAt ? String(value.createdAt) : undefined;
+    const created =
+      value.createdAt && typeof value.createdAt === "object" && "toDate" in value.createdAt
+        ? (value.createdAt as { toDate: () => Date }).toDate().toISOString()
+        : value.createdAt
+          ? String(value.createdAt)
+          : undefined;
     return {
       uid: item.id,
       displayName: String(value.displayName ?? ""),
@@ -290,7 +293,9 @@ export async function adminDashboard(): Promise<AdminDashboardData> {
       lastName: String(value.lastName ?? ""),
       username: String(value.username ?? ""),
       phone: String(value.phone ?? ""),
-      role: (value.role === "ADMIN" || value.role === "SUPER_ADMIN" ? value.role : "USER") as AdminUser["role"],
+      role: (value.role === "ADMIN" || value.role === "SUPER_ADMIN"
+        ? value.role
+        : "USER") as AdminUser["role"],
       disabled: value.disabled === true,
       createdAt: created,
       ticketCount: Number(value.ticketCount ?? 0),
@@ -349,6 +354,8 @@ export type AdminMatch = {
   leagueName?: string;
   homeTeamName?: string;
   awayTeamName?: string;
+  homeTeamLogo?: string | null;
+  awayTeamLogo?: string | null;
   kickoffAt?: string;
   status?: string;
   homeScore?: number | null;
@@ -415,11 +422,19 @@ export async function adminGenerateAutoTicket() {
   const callable = httpsCallable<
     Record<string, never>,
     {
-      created: boolean;
+      created?: boolean;
       reason?: string;
       ticketId?: string;
       selections?: number;
       totalOdds?: number;
+      results?: {
+        target: number;
+        created: boolean;
+        reason?: string;
+        ticketId?: string;
+        selections?: number;
+        totalOdds?: number;
+      }[];
     }
   >(functions, "adminGenerateAutoTicket");
   return (await callable({})).data;

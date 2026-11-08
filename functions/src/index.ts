@@ -16,6 +16,8 @@ type Match = {
   awayId: string;
   homeTeamName: string;
   awayTeamName: string;
+  homeTeamLogo?: string | null;
+  awayTeamLogo?: string | null;
   kickoffAt: string;
   status: string;
   homeScore: number | null;
@@ -54,6 +56,8 @@ function normalizeFixture(item: any): Match {
     awayId: String(t.away.id),
     homeTeamName: t.home.name,
     awayTeamName: t.away.name,
+    homeTeamLogo: t.home.logo ?? null,
+    awayTeamLogo: t.away.logo ?? null,
     kickoffAt: new Date(f.date).toISOString(),
     status: f.status.short,
     homeScore: g.home ?? null,
@@ -93,8 +97,10 @@ async function syncDate(date: string) {
   for (const raw of fixtures) {
     const m = normalizeFixture(raw);
     let markets: any[] = [];
+    let oddsSynced = false;
     try {
       markets = normalizeOdds(await api("/odds", { fixture: m.eventId }));
+      oddsSynced = true;
     } catch (e) {
       console.error("odds", m.eventId, e);
     }
@@ -106,6 +112,9 @@ async function syncDate(date: string) {
           ...m,
           markets,
           externalProvider: "api-football",
+          ...(oddsSynced
+            ? { oddsSource: "api-football", oddsFetchedAt: FieldValue.serverTimestamp() }
+            : {}),
           ...(isFinalStatus(m.status) && m.homeScore != null && m.awayScore != null
             ? { resultSource: "api-football", resultVerifiedAt: FieldValue.serverTimestamp() }
             : {}),
@@ -166,7 +175,11 @@ function outcome(selection: any, match: any): Status {
 }
 async function updateCreatorStats(uid: string) {
   const snap = await db.collection("tickets").where("creatorId", "==", uid).get();
-  let won = 0, lost = 0, pending = 0, selectionWonCount = 0, selectionLostCount = 0;
+  let won = 0,
+    lost = 0,
+    pending = 0,
+    selectionWonCount = 0,
+    selectionLostCount = 0;
   for (const d of snap.docs) {
     const status = String(d.data().status ?? "PENDING");
     if (status === "WON") won++;
@@ -182,11 +195,21 @@ async function updateCreatorStats(uid: string) {
   const settledTicketCount = won + lost;
   const settledSelections = selectionWonCount + selectionLostCount;
   const winRate = settledTicketCount ? Number(((won / settledTicketCount) * 100).toFixed(2)) : 0;
-  const selectionWinRate = settledSelections ? Number(((selectionWonCount / settledSelections) * 100).toFixed(2)) : 0;
+  const selectionWinRate = settledSelections
+    ? Number(((selectionWonCount / settledSelections) * 100).toFixed(2))
+    : 0;
   const stats = {
-    ticketCount: snap.size, settledTicketCount, wonCount: won, lostCount: lost, pendingCount: pending,
-    winRate, selectionWonCount, selectionLostCount, selectionWinRate,
-    predictorBadge: settledTicketCount < 10 ? "NEUTRAL" : winRate < 35 ? "RED" : winRate < 65 ? "BLUE" : "GREEN",
+    ticketCount: snap.size,
+    settledTicketCount,
+    wonCount: won,
+    lostCount: lost,
+    pendingCount: pending,
+    winRate,
+    selectionWonCount,
+    selectionLostCount,
+    selectionWinRate,
+    predictorBadge:
+      settledTicketCount < 10 ? "NEUTRAL" : winRate < 35 ? "RED" : winRate < 65 ? "BLUE" : "GREEN",
     updatedAt: FieldValue.serverTimestamp(),
   };
   await db.collection("users").doc(uid).set(stats, { merge: true });
@@ -294,106 +317,211 @@ function chooseAutoOption(match: any, settings: AutoPickSettings) {
   }
   return null;
 }
-async function runAutoTicket() {
-  const configSnap = await db.collection("automation").doc("config").get();
-  const settings = {
-    ...defaultAutoPickSettings,
-    ...(configSnap.data() ?? {}),
-    // Kila selection lazima iwe ndani ya kiwango kilichoombwa.
-    minOddsPerSelection: 1.4,
-    maxOddsPerSelection: 1.8,
-  } as AutoPickSettings;
-  if (!settings.enabled) return { created: false, reason: "disabled" };
-  const matchesSnap = await db.collection("matches").orderBy("kickoffAt", "asc").limit(80).get();
-  const matches: any[] = matchesSnap.docs
-    .map((item): any => ({ id: item.id, ...item.data() }))
-    .filter(
-      (match) =>
-        isUpcoming(match) &&
-        (!settings.leagueIds?.length || settings.leagueIds.includes(String(match.leagueId))),
-    );
-  const selections: any[] = [];
-  for (const match of matches) {
-    const option = chooseAutoOption(match, settings);
-    if (!option || selections.some((item) => item.matchId === match.id)) continue;
-    selections.push({
-      matchId: match.id,
-      market: option.market,
-      line: option.line ?? null,
-      prediction: String(option.prediction),
-      odds: option.odds,
-      homeTeam: match.homeTeamName,
-      awayTeam: match.awayTeamName,
-      kickoffAt: match.kickoffAt,
-      leagueName: match.leagueName,
-      status: "PENDING",
-    });
-    if (selections.length >= Math.max(2, Math.min(10, settings.maxSelections))) break;
-  }
-  const totalOdds = selections.reduce((total, selection) => total * Number(selection.odds), 1);
-  if (
-    selections.length < Math.max(2, settings.minSelections) ||
-    totalOdds < settings.minTotalOdds ||
-    totalOdds > settings.maxTotalOdds
-  )
-    return { created: false, reason: "not-enough-qualifying-selections" };
-  const windowKey = new Date().toISOString().slice(0, 13);
-  const duplicate = await db
-    .collection("tickets")
-    .where("automationWindow", "==", windowKey)
-    .limit(1)
-    .get();
-  if (!duplicate.empty)
-    return { created: false, reason: "already-created", ticketId: duplicate.docs[0].id };
-  const ticketRef = db.collection("tickets").doc();
-  const batch = db.batch();
-  batch.set(ticketRef, {
-    creatorId: "AUTO_BOT",
-    creatorUsername: "wazee_betting_tz",
-    creatorName: "Wazee wa Betting Tz",
-    creatorPhotoURL: null,
-    title: `Mkeka wa Automatic • ${new Date().toLocaleDateString("sw-TZ")}`,
-    description:
-      "Mkeka huu umetengenezwa na mfumo kwa kutumia odds na ratiba kutoka Sports API. Hakuna uhakika wa ushindi; cheza kwa uwajibikaji.",
-    sport: "Football",
-    risk: settings.risk,
-    visibility: "PUBLIC",
-    access: "FREE",
-    totalOdds: Number(totalOdds.toFixed(2)),
-    status: "PENDING",
-    selectionCount: selections.length,
-    automated: true,
-    automationWindow: windowKey,
-    createdAt: FieldValue.serverTimestamp(),
-    updatedAt: FieldValue.serverTimestamp(),
-  });
-  selections.forEach((selection, index) =>
-    batch.set(ticketRef.collection("selections").doc(String(index + 1)), {
-      ...selection,
-      kickoffAt: new Date(selection.kickoffAt),
-      createdAt: FieldValue.serverTimestamp(),
-    }),
-  );
-  await batch.commit();
-  return { created: true, ticketId: ticketRef.id, selections: selections.length, totalOdds };
+const AUTO_TARGETS = [
+  { target: 1.5, min: 1.35, max: 1.7, key: "1.5", minute: "15" },
+  { target: 3, min: 2.7, max: 3.4, key: "3", minute: "0" },
+  { target: 5, min: 4.5, max: 5.7, key: "5", minute: "45" },
+  { target: 10, min: 9, max: 11.5, key: "10", minute: "30" },
+] as const;
+function tanzaniaDate(now = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Africa/Dar_es_Salaam",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now);
+  const value = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${value.year}-${value.month}-${value.day}`;
 }
-export const generateAutoTicket = onSchedule(
-  { schedule: "every 30 minutes", timeZone: "Africa/Dar_es_Salaam", region: "europe-west1" },
-  async () => {
-    try {
-      const result = await runAutoTicket();
-      await db
-        .collection("api_logs")
-        .add({ type: "auto-ticket", ok: true, result, createdAt: FieldValue.serverTimestamp() });
-    } catch (e) {
-      console.error("auto ticket failed", e);
+async function runAutoTicket(target?: (typeof AUTO_TARGETS)[number]) {
+  const configSnap = await db.collection("automation").doc("config").get();
+  const settings = { ...defaultAutoPickSettings, ...(configSnap.data() ?? {}) } as AutoPickSettings;
+  if (!settings.enabled) return { created: false, reason: "disabled" };
+  const targets = target ? [target] : AUTO_TARGETS;
+  const allResults = [];
+  for (const spec of targets) {
+    const idempotencyKey = `auto-ticket-${tanzaniaDate()}-${spec.key}`;
+    const ticketRef = db.collection("tickets").doc(idempotencyKey);
+    const existing = await ticketRef.get();
+    if (existing.exists) {
+      allResults.push({
+        target: spec.target,
+        created: false,
+        reason: "already-created",
+        ticketId: ticketRef.id,
+      });
+      continue;
+    }
+    const matchesSnap = await db.collection("matches").orderBy("kickoffAt", "asc").limit(200).get();
+    const candidates: any[] = [];
+    for (const doc of matchesSnap.docs) {
+      const match: any = { id: doc.id, ...doc.data() };
+      if (
+        !isUpcoming(match) ||
+        (settings.leagueIds?.length && !settings.leagueIds.includes(String(match.leagueId)))
+      )
+        continue;
+      const oddsFetchedMillis =
+        match.oddsFetchedAt?.toMillis?.() ?? new Date(match.oddsFetchedAt).getTime();
+      if (
+        match.oddsSource !== "api-football" ||
+        !Number.isFinite(oddsFetchedMillis) ||
+        Date.now() - oddsFetchedMillis > 6 * 60 * 60 * 1000 ||
+        !Array.isArray(match.markets)
+      )
+        continue;
+      for (const market of match.markets)
+        for (const option of market.options ?? []) {
+          const odds = Number(option.odds);
+          if (
+            Number.isFinite(odds) &&
+            odds > 1 &&
+            odds <= 4 &&
+            (!settings.markets?.length || settings.markets.includes(market.market))
+          )
+            candidates.push({
+              match,
+              market: market.market,
+              prediction: String(option.prediction),
+              line: option.line ?? null,
+              odds,
+              oddsSource: match.oddsSource,
+              oddsFetchedAt: match.oddsFetchedAt,
+            });
+        }
+    }
+    // Bounded deterministic search: each match can occur once; no synthetic odds.
+    let chosen: any[] | null = null;
+    let visited = 0;
+    const search = (from: number, picks: any[], product: number) => {
+      if (product >= spec.min && product <= spec.max) {
+        chosen = [...picks];
+        return true;
+      }
+      if (product > spec.max || picks.length >= 10 || visited++ > 12000) return false;
+      for (let i = from; i < candidates.length; i++) {
+        const candidate = candidates[i];
+        if (picks.some((pick) => pick.match.id === candidate.match.id)) continue;
+        if (search(i + 1, [...picks, candidate], product * candidate.odds)) return true;
+      }
+      return false;
+    };
+    search(0, [], 1);
+    if (!chosen) {
+      const result = {
+        created: false,
+        reason: candidates.length
+          ? "no-odds-combination-in-target-range"
+          : "no-fixtures-or-fresh-odds",
+        target: spec.target,
+      };
+      allResults.push(result);
       await db.collection("api_logs").add({
-        type: "auto-ticket",
+        type: "auto-ticket-target",
+        targetOdds: spec.target,
+        idempotencyKey,
         ok: false,
-        error: String(e),
+        result,
         createdAt: FieldValue.serverTimestamp(),
       });
+      continue;
     }
+    const picks: any[] = chosen;
+    const totalOdds = Number(picks.reduce((total, pick) => total * pick.odds, 1).toFixed(2));
+    const latestSync = picks
+      .map((pick) => pick.oddsFetchedAt)
+      .sort((a, b) => {
+        const get = (v: any) => v?.toMillis?.() ?? new Date(v).getTime();
+        return get(b) - get(a);
+      })[0];
+    const batch = db.batch();
+    batch.create(ticketRef, {
+      creatorId: "AUTO_BOT",
+      creatorUsername: "wazee_betting_tz",
+      creatorName: "Wazee wa Betting TZ",
+      creatorPhotoURL: null,
+      creatorAccountVerified: true,
+      automated: true,
+      automatedDisclosure: "Mkeka wa mfumo — Wazee wa Betting TZ",
+      title: `Mkeka wa Leo — Odds ${spec.target}`,
+      description:
+        "Mkeka wa mfumo — Wazee wa Betting TZ. Hakuna uhakika wa ushindi. Cheza kwa uwajibikaji.",
+      sport: "Football",
+      risk: settings.risk,
+      visibility: "PUBLIC",
+      access: "FREE",
+      totalOdds,
+      actualTotalOdds: totalOdds,
+      targetOdds: spec.target,
+      oddsSource: "api-football",
+      oddsSyncedAt: latestSync,
+      idempotencyKey,
+      status: "PENDING",
+      selectionCount: picks.length,
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    picks.forEach((pick, index) =>
+      batch.set(ticketRef.collection("selections").doc(String(index + 1)), {
+        matchId: pick.match.id,
+        market: pick.market,
+        line: pick.line,
+        prediction: pick.prediction,
+        odds: pick.odds,
+        oddsSource: pick.oddsSource,
+        oddsFetchedAt: pick.oddsFetchedAt,
+        homeTeam: pick.match.homeTeamName,
+        awayTeam: pick.match.awayTeamName,
+        homeTeamLogo: pick.match.homeTeamLogo ?? null,
+        awayTeamLogo: pick.match.awayTeamLogo ?? null,
+        kickoffAt: new Date(pick.match.kickoffAt),
+        leagueName: pick.match.leagueName,
+        status: "PENDING",
+        createdAt: FieldValue.serverTimestamp(),
+      }),
+    );
+    await batch.commit();
+    const result = {
+      created: true,
+      target: spec.target,
+      ticketId: ticketRef.id,
+      selections: picks.length,
+      totalOdds,
+    };
+    allResults.push(result);
+    await db.collection("api_logs").add({
+      type: "auto-ticket-target",
+      targetOdds: spec.target,
+      idempotencyKey,
+      ok: true,
+      result,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+  }
+  return target ? allResults[0] : { results: allResults };
+}
+export const generateAutoTicket15 = onSchedule(
+  { schedule: "15 1 * * *", timeZone: "Africa/Dar_es_Salaam", region: "europe-west1" },
+  async () => {
+    await runAutoTicket(AUTO_TARGETS[0]);
+  },
+);
+export const generateAutoTicket3 = onSchedule(
+  { schedule: "0 2 * * *", timeZone: "Africa/Dar_es_Salaam", region: "europe-west1" },
+  async () => {
+    await runAutoTicket(AUTO_TARGETS[1]);
+  },
+);
+export const generateAutoTicket5 = onSchedule(
+  { schedule: "45 2 * * *", timeZone: "Africa/Dar_es_Salaam", region: "europe-west1" },
+  async () => {
+    await runAutoTicket(AUTO_TARGETS[2]);
+  },
+);
+export const generateAutoTicket10 = onSchedule(
+  { schedule: "30 3 * * *", timeZone: "Africa/Dar_es_Salaam", region: "europe-west1" },
+  async () => {
+    await runAutoTicket(AUTO_TARGETS[3]);
   },
 );
 export const adminGenerateAutoTicket = onCall({ region: "europe-west1" }, async (request) => {

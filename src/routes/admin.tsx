@@ -38,6 +38,7 @@ import {
 } from "firebase/firestore";
 import { toast } from "sonner";
 import { AppShell } from "../components/app-shell";
+import { TeamLogo } from "../components/team-logo";
 import {
   adminDashboard,
   adminCreateTicket,
@@ -408,11 +409,15 @@ function Admin() {
               onGenerate={async () => {
                 try {
                   const result = await adminGenerateAutoTicket();
-                  if (result.created)
-                    toast.success(`Automatic ticket imetengenezwa: ${result.selections} mechi.`);
+                  const results = Array.isArray(result.results) ? result.results : [result];
+                  const created = results.filter((item) => item.created);
+                  if (created.length)
+                    toast.success(
+                      `Mikeka ${created.length}/4 imetengenezwa kwa target odds tofauti.`,
+                    );
                   else
                     toast.info(
-                      `Hakuna ticket iliyotengenezwa: ${result.reason ?? "hakuna qualifying data"}.`,
+                      `Hakuna mkeka uliotengenezwa: ${results.map((item) => item.reason ?? "hakuna data").join("; ")}.`,
                     );
                   await load();
                 } catch (error) {
@@ -935,8 +940,9 @@ function MatchesSection({
             {matches.length ? (
               matches.slice(0, 80).map((match) => (
                 <div className="admin-list-row" key={match.id}>
-                  <div className="admin-avatar small">
-                    <Trophy size={15} />
+                  <div className="team-line">
+                    <TeamLogo name={match.homeTeamName} src={match.homeTeamLogo} />
+                    <TeamLogo name={match.awayTeamName} src={match.awayTeamLogo} />
                   </div>
                   <div className="admin-list-main">
                     <div>
