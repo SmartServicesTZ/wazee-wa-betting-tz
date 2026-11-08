@@ -2321,3 +2321,10 @@ label {
   color: var(--text);
   font-size: 14px;
 }
+.admin-schedule-note {
+  align-self: center;
+  margin: 0;
+  color: var(--muted-2);
+  font-size: 12px;
+  line-height: 1.5;
+}

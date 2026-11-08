@@ -42,7 +42,6 @@ import { TeamLogo } from "../components/team-logo";
 import {
   adminDashboard,
   adminCreateTicket,
-  adminGenerateAutoTicket,
   adminMatchData,
   adminSetAutoConfig,
   adminSetUserRole,
@@ -403,26 +402,6 @@ function Admin() {
                 } catch (error) {
                   toast.error(
                     error instanceof Error ? error.message : "Imeshindikana kuhifadhi config.",
-                  );
-                }
-              }}
-              onGenerate={async () => {
-                try {
-                  const result = await adminGenerateAutoTicket();
-                  const results = Array.isArray(result.results) ? result.results : [result];
-                  const created = results.filter((item) => item.created);
-                  if (created.length)
-                    toast.success(
-                      `Mikeka ${created.length}/4 imetengenezwa kwa target odds tofauti.`,
-                    );
-                  else
-                    toast.info(
-                      `Hakuna mkeka uliotengenezwa: ${results.map((item) => item.reason ?? "hakuna data").join("; ")}.`,
-                    );
-                  await load();
-                } catch (error) {
-                  toast.error(
-                    error instanceof Error ? error.message : "Automatic ticket imeshindikana.",
                   );
                 }
               }}
@@ -895,13 +874,11 @@ function MatchesSection({
   config,
   logs,
   onConfig,
-  onGenerate,
 }: {
   matches: AdminMatch[];
   config: AutoConfig;
   logs: Row[];
   onConfig: (config: AutoConfig) => Promise<void>;
-  onGenerate: () => Promise<void>;
 }) {
   const [draft, setDraft] = useState(config);
   const [saving, setSaving] = useState(false);
@@ -1068,14 +1045,15 @@ function MatchesSection({
             <button className="admin-outline" disabled={saving} onClick={() => void save()}>
               {saving ? "Inahifadhi..." : "Hifadhi policy"}
             </button>
-            <button className="admin-sync" onClick={() => void onGenerate()}>
-              Tengeneza sasa
-            </button>
+            <p className="admin-schedule-note">
+              Ratiba ya kiotomatiki: kila siku saa 01:15 EAT. Mikeka 4 hujaribiwa; zilizokosa odds
+              hubaki wazi kwenye history.
+            </p>
           </div>
           <div className="automation-history">
             <span className="admin-kicker">AUTOMATION HISTORY</span>
             {logs
-              .filter((row) => String(row.type ?? "").includes("auto-ticket"))
+              .filter((row) => row.type === "auto-ticket-target")
               .slice(0, 5)
               .map((row) => {
                 const result = (row.result ?? {}) as {

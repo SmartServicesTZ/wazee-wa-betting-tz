@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { AUTO_TARGETS, selectTargetCombination } from "./auto-ticket-targets.mjs";
 import { cert, getApps, initializeApp } from "firebase-admin/app";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 
@@ -369,91 +370,80 @@ async function verifyPublishedTicket(ticketId) {
   };
 }
 
-async function generateTicket() {
-  const config = (await db.collection("automation").doc("config").get()).data() ?? {};
-  const settings = {
-    enabled: true,
-    maxSelections: 5,
-    maxOddsPerSelection: 1.65,
-    maxTotalOdds: 12,
-    risk: "LOW",
-    ...config,
-  };
-  if (!settings.enabled) return { created: false, reason: "disabled" };
-  const now = Date.now();
-  const matches = (
-    await db
-      .collection("matches")
-      .where("kickoffAt", ">", new Date(now).toISOString())
-      .orderBy("kickoffAt", "asc")
-      .limit(200)
-      .get()
-  ).docs
-    .map((doc) => ({ id: doc.id, ...doc.data() }))
-    .filter((match) => isUpcoming(match, now) && hasFreshOdds(match, now));
-  const availableOdds = {
-    freshOddsMatches: matches.length,
-    eligibleOptionsByMarket: {},
-    marketsByName: {},
-  };
+async function generateTicketForTarget(target, settings, matches) {
+  const idempotencyKey = `auto-ticket-${dateInTanzania()}-${target.key}`;
+  const ticket = db.collection("tickets").doc(idempotencyKey);
+  if ((await ticket.get()).exists) {
+    return {
+      created: false,
+      reason: "already-created",
+      target: target.target,
+      ticketId: ticket.id,
+    };
+  }
+  if (!settings.enabled) return { created: false, reason: "disabled", target: target.target };
+
+  const targetMin = Math.max(target.min, Number(settings.minTotalOdds ?? 1));
+  const targetMax = Math.min(target.max, Number(settings.maxTotalOdds ?? 12));
+  const minSelections = Math.max(2, Math.min(5, Number(settings.minSelections ?? 2)));
+  const maxSelections = Math.max(minSelections, Math.min(5, Number(settings.maxSelections ?? 5)));
+  const maxSingleOdds = Math.max(1.01, Math.min(4, Number(settings.maxOddsPerSelection ?? 4)));
+  const preferredMarkets = settings.markets?.length
+    ? settings.markets
+    : settings.risk === "LOW"
+      ? ["DOUBLE_CHANCE", "DRAW_NO_BET", "OVER_UNDER", "BTTS", "1X2"]
+      : ["DOUBLE_CHANCE", "1X2", "DRAW_NO_BET", "OVER_UNDER", "BTTS"];
+  const candidates = [];
   for (const match of matches) {
-    for (const market of match.markets ?? []) {
-      availableOdds.marketsByName[market.market] =
-        (availableOdds.marketsByName[market.market] ?? 0) + 1;
-      const count = (market.options ?? []).filter((item) => {
-        const odds = Number(item.odds);
-        return odds > 1 && odds <= Number(settings.maxOddsPerSelection);
-      }).length;
-      if (count) {
-        availableOdds.eligibleOptionsByMarket[market.market] =
-          (availableOdds.eligibleOptionsByMarket[market.market] ?? 0) + count;
+    if (settings.leagueIds?.length && !settings.leagueIds.includes(String(match.leagueId)))
+      continue;
+    const marketRank = (name) => {
+      const index = preferredMarkets.indexOf(name);
+      return index < 0 ? preferredMarkets.length : index;
+    };
+    const markets = [...(match.markets ?? [])].sort(
+      (a, b) => marketRank(a.market) - marketRank(b.market),
+    );
+    for (const market of markets) {
+      if (settings.markets?.length && !settings.markets.includes(market.market)) continue;
+      for (const option of market.options ?? []) {
+        const odds = Number(option.odds);
+        if (Number.isFinite(odds) && odds > 1 && odds <= maxSingleOdds && odds <= 4) {
+          candidates.push({
+            match,
+            market: market.market,
+            prediction: String(option.prediction),
+            line: option.line ?? null,
+            odds,
+          });
+        }
       }
     }
   }
-  const selections = [];
-  let runningOdds = 1;
-  for (const match of matches) {
-    const option = chooseOption(match, settings);
-    if (!option || selections.some((item) => item.matchId === match.id)) continue;
-    const candidateOdds = runningOdds * option.odds;
-    if (candidateOdds > Number(settings.maxTotalOdds)) continue;
-    selections.push({
-      matchId: match.id,
-      market: option.market,
-      line: option.line ?? null,
-      prediction: option.prediction,
-      odds: option.odds,
-      homeTeam: match.homeTeamName,
-      awayTeam: match.awayTeamName,
-      kickoffAt: match.kickoffAt,
-      leagueName: match.leagueName,
-      status: "PENDING",
-    });
-    runningOdds = candidateOdds;
-    if (
-      selections.length >= Math.max(2, Math.min(5, Number(settings.maxSelections))) ||
-      selections.length >= 5
-    )
-      break;
+
+  const chosen = selectTargetCombination(
+    candidates,
+    { ...target, min: targetMin, max: targetMax },
+    minSelections,
+    maxSelections,
+  );
+  if (!chosen) {
+    return {
+      created: false,
+      reason: candidates.length
+        ? "no-odds-combination-in-target-range"
+        : "no-fixtures-or-fresh-odds",
+      target: target.target,
+      candidateSelections: candidates.length,
+    };
   }
-  const totalOdds = selections.reduce((total, selection) => total * Number(selection.odds), 1);
-  if (selections.length < 2)
-    return {
-      created: false,
-      reason: "not-enough-qualifying-selections",
-      qualifyingSelections: selections.length,
-      ...availableOdds,
-    };
-  if (totalOdds > Number(settings.maxTotalOdds))
-    return {
-      created: false,
-      reason: "total-odds-exceed-configured-maximum",
-      qualifyingSelections: selections.length,
-    };
+
+  const picks = chosen;
+  const totalOdds = Number(picks.reduce((total, pick) => total * pick.odds, 1).toFixed(2));
   const fingerprint = createHash("sha256")
     .update(
-      selections
-        .map((item) => `${item.matchId}:${item.market}:${item.prediction}:${item.odds}`)
+      picks
+        .map((pick) => `${pick.match.id}:${pick.market}:${pick.prediction}:${pick.odds}`)
         .sort()
         .join("|"),
       "utf8",
@@ -465,71 +455,134 @@ async function generateTicket() {
     .limit(1)
     .get();
   if (!duplicate.empty) {
-    const ticketId = duplicate.docs[0].id;
     return {
       created: false,
-      reason: "duplicate-fingerprint",
-      ticketId,
-      verification: await verifyPublishedTicket(ticketId),
+      reason: "already-created",
+      target: target.target,
+      ticketId: duplicate.docs[0].id,
     };
   }
-  const windowKey = new Date().toISOString().slice(0, 13);
-  const sameWindow = await db
-    .collection("tickets")
-    .where("automationWindow", "==", windowKey)
-    .limit(1)
-    .get();
-  if (!sameWindow.empty)
-    return {
-      created: false,
-      reason: "already-created-this-window",
-      ticketId: sameWindow.docs[0].id,
-      verification: await verifyPublishedTicket(sameWindow.docs[0].id),
-    };
-  const ticket = db.collection("tickets").doc();
-  const batch = db.batch();
+
+  const latestSync = picks
+    .map((pick) => pick.match.oddsFetchedAt)
+    .sort((a, b) => timestampMillis(b) - timestampMillis(a))[0];
   const titleDate = new Intl.DateTimeFormat("en-GB", { timeZone, dateStyle: "medium" }).format(
     new Date(),
   );
-  batch.set(ticket, {
+  const batch = db.batch();
+  batch.create(ticket, {
     creatorId: "AUTO_BOT",
     creatorUsername: "wazee_betting_tz",
-    creatorName: "Wazee wa Betting Tz",
+    creatorName: "Wazee wa Betting TZ",
     creatorPhotoURL: null,
-    title: `Mkeka wa Automatic • ${titleDate}`,
+    creatorAccountVerified: true,
+    automated: true,
+    automatedDisclosure: "Mkeka wa mfumo — Wazee wa Betting TZ",
+    title: `Mkeka wa Leo — Odds ${target.target} • ${titleDate}`,
     description:
-      "Mkeka huu umetengenezwa na mfumo kwa kutumia odds zilizothibitishwa kutoka Sports API. Hakuna uhakika wa ushindi; cheza kwa uwajibikaji.",
+      "Mkeka wa mfumo — odds halisi kutoka Sports API. Hakuna uhakika wa ushindi; cheza kwa uwajibikaji.",
     sport: "Football",
-    risk: settings.risk,
+    risk: settings.risk ?? "LOW",
     visibility: "PUBLIC",
     access: "FREE",
-    totalOdds: Number(totalOdds.toFixed(2)),
-    status: "PENDING",
-    selectionCount: selections.length,
-    automated: true,
-    automationWindow: windowKey,
+    totalOdds,
+    actualTotalOdds: totalOdds,
+    targetOdds: target.target,
+    oddsSource: "api-football",
+    oddsSyncedAt: latestSync,
+    idempotencyKey,
     automationFingerprint: fingerprint,
+    automationWindow: `${dateInTanzania()}-${target.key}`,
+    status: "PENDING",
+    selectionCount: picks.length,
     oddsVerifiedAt: FieldValue.serverTimestamp(),
     createdAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp(),
   });
-  selections.forEach((selection, index) =>
+  picks.forEach((pick, index) => {
+    const match = pick.match;
     batch.set(ticket.collection("selections").doc(String(index + 1)), {
-      ...selection,
-      kickoffAt: new Date(selection.kickoffAt),
+      matchId: match.id,
+      market: pick.market,
+      line: pick.line,
+      prediction: pick.prediction,
+      odds: pick.odds,
+      oddsSource: match.oddsSource,
+      oddsFetchedAt: match.oddsFetchedAt,
+      homeTeam: match.homeTeamName,
+      awayTeam: match.awayTeamName,
+      homeTeamLogo: match.homeTeamLogo ?? null,
+      awayTeamLogo: match.awayTeamLogo ?? null,
+      kickoffAt: new Date(match.kickoffAt),
+      leagueName: match.leagueName,
+      status: "PENDING",
       createdAt: FieldValue.serverTimestamp(),
-    }),
-  );
+    });
+  });
   await batch.commit();
-  const verification = await verifyPublishedTicket(ticket.id);
   return {
     created: true,
+    target: target.target,
     ticketId: ticket.id,
-    selections: selections.length,
-    totalOdds: Number(totalOdds.toFixed(2)),
+    selections: picks.length,
+    totalOdds,
     fingerprint,
-    verification,
   };
+}
+
+async function generateDailyTickets() {
+  const config = (await db.collection("automation").doc("config").get()).data() ?? {};
+  const settings = {
+    enabled: true,
+    maxSelections: 5,
+    minSelections: 2,
+    maxOddsPerSelection: 4,
+    maxTotalOdds: 12,
+    risk: "LOW",
+    ...config,
+  };
+  const now = Date.now();
+  const matches = (
+    await db
+      .collection("matches")
+      .where("kickoffAt", ">", new Date(now).toISOString())
+      .orderBy("kickoffAt", "asc")
+      .limit(200)
+      .get()
+  ).docs
+    .map((doc) => ({ id: doc.id, ...doc.data() }))
+    .filter((match) => isUpcoming(match, now) && hasFreshOdds(match, now));
+  const results = [];
+  for (const target of AUTO_TARGETS) {
+    try {
+      const result = await generateTicketForTarget(target, settings, matches);
+      results.push(result);
+      await writeLog({
+        type: "auto-ticket-target",
+        targetOdds: target.target,
+        idempotencyKey: `auto-ticket-${dateInTanzania()}-${target.key}`,
+        ok: result.created,
+        result,
+      });
+    } catch (error) {
+      const result = {
+        created: false,
+        reason: "generation-error",
+        target: target.target,
+        error: String(error),
+      };
+      results.push(result);
+      await writeLog({
+        type: "auto-ticket-target",
+        targetOdds: target.target,
+        idempotencyKey: `auto-ticket-${dateInTanzania()}-${target.key}`,
+        ok: false,
+        error: String(error),
+        result,
+      });
+    }
+  }
+  return { results };
 }
 
 async function main() {
@@ -537,7 +590,7 @@ async function main() {
   const dates = [today, addCalendarDays(today, 1)];
   const syncResults = [];
   for (const date of dates) syncResults.push(await syncDate(date));
-  const result = await generateTicket();
+  const result = await generateDailyTickets();
   const diagnostics = {
     timeZone,
     runnerTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,

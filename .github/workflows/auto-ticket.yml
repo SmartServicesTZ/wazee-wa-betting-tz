@@ -1,0 +1,34 @@
+name: Generate daily automatic tickets
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 01:15 Africa/Dar_es_Salaam (UTC+3); one run publishes up to four target slips.
+    - cron: "15 22 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: auto-ticket
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Firebase Admin SDK
+        working-directory: functions
+        run: npm install --no-save
+      - name: Sync sports data and publish automatic ticket
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT || secrets.FIREBASE_SERVICES_ACCOUNT }}
+          SPORTS_API_KEY: ${{ secrets.SPORTS_API_KEY }}
+          SPORTS_API_BASE_URL: ${{ secrets.SPORTS_API_BASE_URL }}
+          MAX_ODDS_FIXTURES: "3"
+        run: node functions/scripts/auto-ticket.mjs
