@@ -1,5 +1,9 @@
 name: Sync live football scores
 on:
+  push:
+    branches: [main]
+    paths:
+      - "functions/scripts/auto-ticket.mjs"
   workflow_dispatch:
   schedule:
     # 72 fixture requests/day; leave quota headroom for the existing daily odds/ticket job.
