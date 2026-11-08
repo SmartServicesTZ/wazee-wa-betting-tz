@@ -637,6 +637,7 @@ async function main() {
   if (process.argv.includes("--sync-live-only")) {
     const result = await syncLiveFixtures();
     const diagnostics = {
+      firebaseProjectId: serviceAccount.project_id,
       timeZone,
       runnerTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       runnerNow: new Date().toISOString(),
@@ -681,6 +682,7 @@ try {
     error: String(error),
     apiStats,
     diagnostics: {
+      firebaseProjectId: serviceAccount.project_id,
       timeZone,
       runnerTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       runnerNow: new Date().toISOString(),

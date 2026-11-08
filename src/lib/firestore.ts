@@ -237,16 +237,14 @@ export async function listCurrentAndUpcomingMatches(max = 150) {
       query(
         collection(firestore, "matches"),
         where("status", "in", LIVE_MATCH_STATUSES),
-        limit(50),
+        limit(100),
       ),
     ),
   ]);
-  const live = liveSnapshot.docs
-    .map((item) => ({ id: item.id, ...item.data() }))
-    .filter((match) => {
-      const kickoff = new Date(String(match.kickoffAt ?? "")).getTime();
-      return Number.isFinite(kickoff) && kickoff >= Date.now() - 8 * 60 * 60 * 1000;
-    });
+  // A live status from the sports provider is authoritative. Do not hide a
+  // currently-live fixture just because its scheduled kickoff timestamp is old
+  // (timezone corrections, delayed kickoffs, and resumed matches can cause this).
+  const live = liveSnapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
   const unique = new Map([...live, ...upcoming].map((match) => [match.id, match]));
   return [...unique.values()].sort(
     (a, b) => new Date(String(a.kickoffAt)).getTime() - new Date(String(b.kickoffAt)).getTime(),
@@ -261,16 +259,14 @@ export async function listMatches(max = 100) {
       query(
         collection(firestore, "matches"),
         where("status", "in", LIVE_MATCH_STATUSES),
-        limit(50),
+        limit(100),
       ),
     ),
   ]);
-  const live = liveSnapshot.docs
-    .map((item) => ({ id: item.id, ...item.data() }))
-    .filter((match) => {
-      const kickoff = new Date(String(match.kickoffAt ?? "")).getTime();
-      return Number.isFinite(kickoff) && kickoff >= Date.now() - 8 * 60 * 60 * 1000;
-    });
+  // A live status from the sports provider is authoritative. Do not hide a
+  // currently-live fixture just because its scheduled kickoff timestamp is old
+  // (timezone corrections, delayed kickoffs, and resumed matches can cause this).
+  const live = liveSnapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
   const unique = new Map([...live, ...recent].map((match) => [match.id, match]));
   return [...unique.values()]
     .sort(
