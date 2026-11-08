@@ -263,8 +263,8 @@ const defaultAutoPickSettings: AutoPickSettings = {
   enabled: true,
   minSelections: 2,
   maxSelections: 5,
-  minOddsPerSelection: 1.1,
-  maxOddsPerSelection: 1.65,
+  minOddsPerSelection: 1.4,
+  maxOddsPerSelection: 1.8,
   minTotalOdds: 1,
   maxTotalOdds: 12,
   risk: "LOW",
@@ -296,7 +296,13 @@ function chooseAutoOption(match: any, settings: AutoPickSettings) {
 }
 async function runAutoTicket() {
   const configSnap = await db.collection("automation").doc("config").get();
-  const settings = { ...defaultAutoPickSettings, ...(configSnap.data() ?? {}) } as AutoPickSettings;
+  const settings = {
+    ...defaultAutoPickSettings,
+    ...(configSnap.data() ?? {}),
+    // Kila selection lazima iwe ndani ya kiwango kilichoombwa.
+    minOddsPerSelection: 1.4,
+    maxOddsPerSelection: 1.8,
+  } as AutoPickSettings;
   if (!settings.enabled) return { created: false, reason: "disabled" };
   const matchesSnap = await db.collection("matches").orderBy("kickoffAt", "asc").limit(80).get();
   const matches: any[] = matchesSnap.docs
@@ -612,7 +618,12 @@ export const adminMatchData = onCall({ region: "europe-west1" }, async (request)
   ]);
   return {
     matches: matchesSnap.docs.map((item) => ({ id: item.id, ...item.data() })),
-    autoConfig: { ...defaultAutoPickSettings, ...(configSnap.data() ?? {}) },
+    autoConfig: {
+      ...defaultAutoPickSettings,
+      ...(configSnap.data() ?? {}),
+      minOddsPerSelection: 1.4,
+      maxOddsPerSelection: 1.8,
+    },
     logs: logsSnap.docs.map((item) => ({ id: item.id, ...item.data() })),
   };
 });
