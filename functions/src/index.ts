@@ -3,10 +3,11 @@ import { getAuth } from "firebase-admin/auth";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
+import { defineSecret } from "firebase-functions/params";
 initializeApp();
 const db = getFirestore();
 const API_BASE = process.env.SPORTS_API_BASE_URL ?? "https://v3.football.api-sports.io";
-const API_KEY = process.env.SPORTS_API_KEY;
+const SPORTS_API_KEY = defineSecret("SPORTS_API_KEY");
 type Status = "PENDING" | "WON" | "LOST" | "VOID" | "CANCELLED";
 type Match = {
   eventId: string;
@@ -25,15 +26,18 @@ type Match = {
   markets?: any[];
 };
 function assertApi() {
-  if (!API_KEY) throw new Error("SPORTS_API_KEY haijawekwa kwenye server.");
+  if (!SPORTS_API_KEY.value())
+    throw new Error("SPORTS_API_KEY haijawekwa kwenye Firebase Secret Manager.");
 }
 async function api(path: string, params: Record<string, string> = {}) {
   assertApi();
-  const base = API_BASE.endsWith("/") ? API_BASE : API_BASE + "/";
+  const savedApi = await db.collection("siteSettings").doc("main").get();
+  const baseValue = String(savedApi.data()?.sportsApiBaseUrl ?? API_BASE);
+  const base = baseValue.endsWith("/") ? baseValue : baseValue + "/";
   const url = new URL(path, base);
   Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
   const res = await fetch(url, {
-    headers: { "x-apisports-key": API_KEY!, Accept: "application/json" },
+    headers: { "x-apisports-key": SPORTS_API_KEY.value(), Accept: "application/json" },
   });
   if (!res.ok) throw new Error("Sports API HTTP " + res.status);
   const body = (await res.json()) as any;
@@ -166,7 +170,11 @@ function outcome(selection: any, match: any): Status {
 }
 async function updateCreatorStats(uid: string) {
   const snap = await db.collection("tickets").where("creatorId", "==", uid).get();
-  let won = 0, lost = 0, pending = 0, selectionWonCount = 0, selectionLostCount = 0;
+  let won = 0,
+    lost = 0,
+    pending = 0,
+    selectionWonCount = 0,
+    selectionLostCount = 0;
   for (const d of snap.docs) {
     const status = String(d.data().status ?? "PENDING");
     if (status === "WON") won++;
@@ -182,11 +190,21 @@ async function updateCreatorStats(uid: string) {
   const settledTicketCount = won + lost;
   const settledSelections = selectionWonCount + selectionLostCount;
   const winRate = settledTicketCount ? Number(((won / settledTicketCount) * 100).toFixed(2)) : 0;
-  const selectionWinRate = settledSelections ? Number(((selectionWonCount / settledSelections) * 100).toFixed(2)) : 0;
+  const selectionWinRate = settledSelections
+    ? Number(((selectionWonCount / settledSelections) * 100).toFixed(2))
+    : 0;
   const stats = {
-    ticketCount: snap.size, settledTicketCount, wonCount: won, lostCount: lost, pendingCount: pending,
-    winRate, selectionWonCount, selectionLostCount, selectionWinRate,
-    predictorBadge: settledTicketCount < 10 ? "NEUTRAL" : winRate < 35 ? "RED" : winRate < 65 ? "BLUE" : "GREEN",
+    ticketCount: snap.size,
+    settledTicketCount,
+    wonCount: won,
+    lostCount: lost,
+    pendingCount: pending,
+    winRate,
+    selectionWonCount,
+    selectionLostCount,
+    selectionWinRate,
+    predictorBadge:
+      settledTicketCount < 10 ? "NEUTRAL" : winRate < 35 ? "RED" : winRate < 65 ? "BLUE" : "GREEN",
     updatedAt: FieldValue.serverTimestamp(),
   };
   await db.collection("users").doc(uid).set(stats, { merge: true });
@@ -378,10 +396,19 @@ async function runAutoTicket() {
   return { created: true, ticketId: ticketRef.id, selections: selections.length, totalOdds };
 }
 export const generateAutoTicket = onSchedule(
-  { schedule: "every 30 minutes", timeZone: "Africa/Dar_es_Salaam", region: "europe-west1" },
+  {
+    schedule: "every 30 minutes",
+    timeZone: "Africa/Dar_es_Salaam",
+    region: "europe-west1",
+    secrets: [SPORTS_API_KEY],
+  },
   async () => {
     try {
       const result = await runAutoTicket();
+      if (result.created)
+        await writeAdminActivity("SYSTEM", "automation.ticket_created", undefined, {
+          ticketId: result.ticketId,
+        });
       await db
         .collection("api_logs")
         .add({ type: "auto-ticket", ok: true, result, createdAt: FieldValue.serverTimestamp() });
@@ -399,14 +426,24 @@ export const generateAutoTicket = onSchedule(
 export const adminGenerateAutoTicket = onCall({ region: "europe-west1" }, async (request) => {
   await assertAdmin(request);
   try {
-    return await runAutoTicket();
+    const result = await runAutoTicket();
+    if (result.created)
+      await writeAdminActivity(request.auth!.uid, "automation.ticket_created", undefined, {
+        ticketId: result.ticketId,
+      });
+    return result;
   } catch (e) {
     console.error("manual auto ticket failed", e);
     throw new HttpsError("internal", "Auto ticket imeshindikana.");
   }
 });
 export const syncSports = onSchedule(
-  { schedule: "every 10 minutes", timeZone: "Africa/Dar_es_Salaam", region: "europe-west1" },
+  {
+    schedule: "every 10 minutes",
+    timeZone: "Africa/Dar_es_Salaam",
+    region: "europe-west1",
+    secrets: [SPORTS_API_KEY],
+  },
   async () => {
     const now = new Date();
     for (let i = -1; i < 3; i++) {
@@ -439,36 +476,59 @@ export const syncSports = onSchedule(
     }
   },
 );
-export const adminSync = onCall({ region: "europe-west1" }, async (request) => {
-  if (!request.auth) throw new HttpsError("unauthenticated", "Login required.");
-  const u = await db.collection("users").doc(request.auth.uid).get();
-  if (!["ADMIN", "SUPER_ADMIN"].includes(u.data()?.role))
-    throw new HttpsError("permission-denied", "Admin only.");
-  try {
-    const date = String(request.data?.date ?? new Date().toISOString().slice(0, 10));
-    const count = await syncDate(date);
-    const settled = await settle();
-    await db.collection("api_logs").add({
-      type: "manual-sync",
-      date,
-      count,
-      settled,
-      ok: true,
-      by: request.auth.uid,
-      createdAt: FieldValue.serverTimestamp(),
-    });
-    return { ok: true, count, settled };
-  } catch (e) {
-    await db.collection("api_logs").add({
-      type: "manual-sync",
-      ok: false,
-      error: String(e),
-      by: request.auth.uid,
-      createdAt: FieldValue.serverTimestamp(),
-    });
-    throw new HttpsError("internal", "Sports synchronization failed.");
-  }
-});
+export const adminSync = onCall(
+  { region: "europe-west1", secrets: [SPORTS_API_KEY] },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Login required.");
+    const u = await db.collection("users").doc(request.auth.uid).get();
+    if (!["ADMIN", "SUPER_ADMIN"].includes(u.data()?.role))
+      throw new HttpsError("permission-denied", "Admin only.");
+    try {
+      const date = String(request.data?.date ?? new Date().toISOString().slice(0, 10));
+      const count = await syncDate(date);
+      const settled = await settle();
+      await writeAdminActivity(request.auth.uid, "sports.sync_completed", undefined, {
+        date,
+        count,
+        settled,
+      });
+      await db.collection("api_logs").add({
+        type: "manual-sync",
+        date,
+        count,
+        settled,
+        ok: true,
+        by: request.auth.uid,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      return { ok: true, count, settled };
+    } catch (e) {
+      await db.collection("api_logs").add({
+        type: "manual-sync",
+        ok: false,
+        error: String(e),
+        by: request.auth.uid,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      throw new HttpsError("internal", "Sports synchronization failed.");
+    }
+  },
+);
+
+async function writeAdminActivity(
+  actorUid: string,
+  action: string,
+  targetUid?: string,
+  details?: Record<string, unknown>,
+) {
+  await db.collection("adminActivityLogs").add({
+    actorUid,
+    action,
+    ...(targetUid ? { targetUid } : {}),
+    ...(details ? { details } : {}),
+    createdAt: FieldValue.serverTimestamp(),
+  });
+}
 
 function assertPrivileged(request: any) {
   if (!request.auth) throw new HttpsError("unauthenticated", "Login required.");
@@ -491,6 +551,7 @@ export const adminResetUserPassword = onCall({ region: "europe-west1" }, async (
   if (target.data()?.role === "SUPER_ADMIN" && auth.uid !== uid)
     throw new HttpsError("permission-denied", "SUPER_ADMIN hawezi kubadilishwa na admin mwingine.");
   await getAuth().updateUser(uid, { password });
+  await writeAdminActivity(auth.uid, "user.password_reset", uid);
   await db
     .collection("passwordResets")
     .add({ targetUid: uid, actorUid: auth.uid, createdAt: FieldValue.serverTimestamp() });
@@ -587,6 +648,7 @@ export const adminSetUserStatus = onCall({ region: "europe-west1" }, async (requ
     .collection("users")
     .doc(uid)
     .set({ disabled, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  await writeAdminActivity(request.auth!.uid, disabled ? "user.disabled" : "user.enabled", uid);
   return { ok: true, disabled };
 });
 
@@ -606,8 +668,160 @@ export const adminSetUserRole = onCall({ region: "europe-west1" }, async (reques
     .collection("users")
     .doc(uid)
     .set({ role, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  await writeAdminActivity(
+    request.auth!.uid,
+    role === "ADMIN" ? "user.admin_granted" : "user.admin_revoked",
+    uid,
+  );
   return { ok: true, role };
 });
+
+type SiteSettingsInput = {
+  siteName: string;
+  logoUrl: string;
+  supportWhatsApp: string;
+  terms: string;
+  notifications: { ticketUpdates: boolean; results: boolean; announcements: boolean };
+  announcement: {
+    enabled: boolean;
+    title: string;
+    message: string;
+    tone: "info" | "success" | "warning";
+  };
+  sportsApi: { configured?: boolean; baseUrl: string };
+};
+const defaultSiteSettings: SiteSettingsInput = {
+  siteName: "WAZEE WA BETTING TZ",
+  logoUrl: "",
+  supportWhatsApp: "+255698232313",
+  terms: "",
+  notifications: { ticketUpdates: true, results: true, announcements: true },
+  announcement: { enabled: false, title: "", message: "", tone: "info" },
+  sportsApi: { baseUrl: "https://v3.football.api-sports.io" },
+};
+export const adminGetSiteSettings = onCall(
+  { region: "europe-west1", secrets: [SPORTS_API_KEY] },
+  async (request) => {
+    await assertAdmin(request);
+    const snap = await db.collection("siteSettings").doc("main").get();
+    const raw = snap.data() ?? {};
+    const value = { ...defaultSiteSettings, ...raw };
+    return {
+      siteName: String(value.siteName),
+      logoUrl: String(value.logoUrl),
+      supportWhatsApp: String(value.supportWhatsApp),
+      terms: String(value.terms),
+      notifications: { ...defaultSiteSettings.notifications, ...(value.notifications ?? {}) },
+      announcement: { ...defaultSiteSettings.announcement, ...(value.announcement ?? {}) },
+      sportsApi: {
+        configured: Boolean(SPORTS_API_KEY.value()),
+        baseUrl: String(
+          raw.sportsApiBaseUrl ??
+            process.env.SPORTS_API_BASE_URL ??
+            defaultSiteSettings.sportsApi.baseUrl,
+        ),
+      },
+    };
+  },
+);
+export const adminSaveSiteSettings = onCall(
+  { region: "europe-west1", secrets: [SPORTS_API_KEY] },
+  async (request) => {
+    await assertAdmin(request);
+    const raw = (request.data ?? {}) as Partial<SiteSettingsInput>;
+    const siteName = String(raw.siteName ?? "")
+      .trim()
+      .slice(0, 80);
+    const logoUrl = String(raw.logoUrl ?? "").trim();
+    const supportWhatsApp = String(raw.supportWhatsApp ?? "").trim();
+    const terms = String(raw.terms ?? "").slice(0, 20000);
+    const baseUrl = String(raw.sportsApi?.baseUrl ?? "").trim();
+    if (!siteName || !/^\+?255\d{9}$/.test(supportWhatsApp.replace(/[\s()-]/g, "")))
+      throw new HttpsError(
+        "invalid-argument",
+        "Jina la website na namba sahihi ya WhatsApp vinahitajika.",
+      );
+    if (logoUrl && (!logoUrl.startsWith("https://") || logoUrl.length > 2048))
+      throw new HttpsError("invalid-argument", "Logo lazima iwe URL salama ya HTTPS.");
+    let parsedBase: URL;
+    try {
+      parsedBase = new URL(baseUrl);
+    } catch {
+      throw new HttpsError("invalid-argument", "Sports API URL si sahihi.");
+    }
+    if (parsedBase.protocol !== "https:" || parsedBase.username || parsedBase.password)
+      throw new HttpsError(
+        "invalid-argument",
+        "Sports API itumie HTTPS bila credentials kwenye URL.",
+      );
+    const notifications = {
+      ticketUpdates: Boolean(raw.notifications?.ticketUpdates),
+      results: Boolean(raw.notifications?.results),
+      announcements: Boolean(raw.notifications?.announcements),
+    };
+    const tone = ["info", "success", "warning"].includes(String(raw.announcement?.tone))
+      ? raw.announcement!.tone
+      : "info";
+    const announcement = {
+      enabled: Boolean(raw.announcement?.enabled),
+      title: String(raw.announcement?.title ?? "")
+        .trim()
+        .slice(0, 120),
+      message: String(raw.announcement?.message ?? "")
+        .trim()
+        .slice(0, 1000),
+      tone,
+    };
+    const settings = {
+      siteName,
+      logoUrl,
+      supportWhatsApp,
+      terms,
+      notifications,
+      announcement,
+      sportsApiBaseUrl: parsedBase.toString(),
+    };
+    const updateFields = {
+      ...settings,
+      updatedAt: FieldValue.serverTimestamp(),
+      updatedBy: request.auth!.uid,
+    };
+    await db.collection("siteSettings").doc("main").set(updateFields, { merge: true });
+    await db.collection("publicSiteContent").doc("main").set(
+      {
+        siteName,
+        logoUrl,
+        supportWhatsApp,
+        terms,
+        announcement,
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+    await writeAdminActivity(request.auth!.uid, "settings.updated", undefined, {
+      changedFields: [
+        "siteName",
+        "logoUrl",
+        "supportWhatsApp",
+        "terms",
+        "notifications",
+        "announcement",
+        "sportsApiBaseUrl",
+      ],
+      announcementEnabled: announcement.enabled,
+    });
+    return {
+      ok: true,
+      settings: {
+        ...settings,
+        sportsApi: {
+          baseUrl: settings.sportsApiBaseUrl,
+          configured: Boolean(SPORTS_API_KEY.value()),
+        },
+      },
+    };
+  },
+);
 
 export const adminMatchData = onCall({ region: "europe-west1" }, async (request) => {
   await assertAdmin(request);
@@ -652,6 +866,9 @@ export const adminSetAutoConfig = onCall({ region: "europe-west1" }, async (requ
   )
     throw new HttpsError("invalid-argument", "Kiwango cha chini hakiwezi kuzidi cha juu.");
   await db.collection("automation").doc("config").set(config, { merge: true });
+  await writeAdminActivity(request.auth!.uid, "automation.config_updated", undefined, {
+    enabled: config.enabled,
+  });
   await db.collection("api_logs").add({
     type: "auto-ticket-config",
     ok: true,
@@ -660,6 +877,55 @@ export const adminSetAutoConfig = onCall({ region: "europe-west1" }, async (requ
     createdAt: FieldValue.serverTimestamp(),
   });
   return { ok: true, config };
+});
+
+export const adminUpdateTicket = onCall({ region: "europe-west1" }, async (request) => {
+  await assertAdmin(request);
+  const ticketId = String(request.data?.ticketId ?? "");
+  const action = String(request.data?.action ?? "");
+  if (!ticketId || !["visibility", "title"].includes(action))
+    throw new HttpsError("invalid-argument", "Ticket na kitendo halali vinahitajika.");
+  const ref = db.collection("tickets").doc(ticketId);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError("not-found", "Tiketi haipo.");
+  if (action === "visibility") {
+    const visibility = request.data?.visibility === "PUBLIC" ? "PUBLIC" : "PRIVATE";
+    await ref.update({ visibility, updatedAt: FieldValue.serverTimestamp() });
+    await writeAdminActivity(request.auth!.uid, "ticket.visibility_changed", undefined, {
+      ticketId,
+      visibility,
+    });
+    return { ok: true, visibility };
+  }
+  const title = String(request.data?.title ?? "")
+    .trim()
+    .slice(0, 120);
+  if (!title) throw new HttpsError("invalid-argument", "Jina la tiketi linahitajika.");
+  await ref.update({ title, updatedAt: FieldValue.serverTimestamp() });
+  await writeAdminActivity(request.auth!.uid, "ticket.updated", undefined, { ticketId });
+  return { ok: true, title };
+});
+export const adminDeleteTicket = onCall({ region: "europe-west1" }, async (request) => {
+  await assertAdmin(request);
+  const ticketId = String(request.data?.ticketId ?? "");
+  if (!ticketId) throw new HttpsError("invalid-argument", "Ticket ID inahitajika.");
+  const ref = db.collection("tickets").doc(ticketId);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError("not-found", "Tiketi haipo.");
+  const selections = await ref.collection("selections").get();
+  const batch = db.batch();
+  selections.docs.forEach((item) => batch.delete(item.ref));
+  batch.delete(ref);
+  await batch.commit();
+  await writeAdminActivity(request.auth!.uid, "ticket.deleted", undefined, { ticketId });
+  return { ok: true };
+});
+export const adminAuditEvent = onCall({ region: "europe-west1" }, async (request) => {
+  await assertAdmin(request);
+  const action = String(request.data?.action ?? "");
+  if (action !== "report.exported") throw new HttpsError("invalid-argument", "Tukio haliruhusiwi.");
+  await writeAdminActivity(request.auth!.uid, action);
+  return { ok: true };
 });
 
 export const adminCreateTicket = onCall({ region: "europe-west1" }, async (request) => {
@@ -747,6 +1013,12 @@ export const adminCreateTicket = onCall({ region: "europe-west1" }, async (reque
     }),
   );
   await batch.commit();
+  await writeAdminActivity(
+    request.auth!.uid,
+    ticketId ? "ticket.updated" : "ticket.created",
+    undefined,
+    { ticketId: ticketRef.id },
+  );
   await db.collection("api_logs").add({
     type: ticketId ? "admin-ticket-update" : "admin-ticket-create",
     ok: true,
@@ -760,4 +1032,258 @@ export const adminCreateTicket = onCall({ region: "europe-west1" }, async (reque
     totalOdds: Number(totalOdds.toFixed(2)),
     selectionCount: validated.length,
   };
+});
+
+type VirtualCoinReward = { label: string; amount: number; requiredWins: number };
+type VirtualCoinSettings = {
+  welcomeBonus: number;
+  dailyGrant: number;
+  dailyGrantEnabled: boolean;
+  minBet: number;
+  maxBet: number;
+  rewards: VirtualCoinReward[];
+};
+const defaultVirtualCoinSettings: VirtualCoinSettings = {
+  welcomeBonus: 100,
+  dailyGrant: 25,
+  dailyGrantEnabled: true,
+  minBet: 1,
+  maxBet: 1000,
+  rewards: [
+    { label: "Mshindi wa wiki", amount: 250, requiredWins: 5 },
+    { label: "Mshindi wa mwezi", amount: 1000, requiredWins: 20 },
+  ],
+};
+function coinWalletRef(uid: string) {
+  return db.collection("coinBalances").doc(uid);
+}
+function coinTransactionRef(uid: string, idempotencyKey: string) {
+  return db
+    .collection("coinTransactions")
+    .doc(`${uid}_${idempotencyKey}`.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 140));
+}
+function normalizeCoinSettings(raw: any): VirtualCoinSettings {
+  const rewards = Array.isArray(raw?.rewards)
+    ? raw.rewards
+        .slice(0, 10)
+        .map((item: any) => ({
+          label: String(item?.label ?? "Reward")
+            .trim()
+            .slice(0, 80),
+          amount: Math.max(0, Math.min(1000000, Math.floor(Number(item?.amount ?? 0)))),
+          requiredWins: Math.max(0, Math.min(100000, Math.floor(Number(item?.requiredWins ?? 0)))),
+        }))
+        .filter((item: VirtualCoinReward) => item.label && item.amount > 0)
+    : defaultVirtualCoinSettings.rewards;
+  return {
+    welcomeBonus: Math.max(
+      0,
+      Math.min(
+        1000000,
+        Math.floor(Number(raw?.welcomeBonus ?? defaultVirtualCoinSettings.welcomeBonus)),
+      ),
+    ),
+    dailyGrant: Math.max(
+      0,
+      Math.min(
+        1000000,
+        Math.floor(Number(raw?.dailyGrant ?? defaultVirtualCoinSettings.dailyGrant)),
+      ),
+    ),
+    dailyGrantEnabled: raw?.dailyGrantEnabled !== false,
+    minBet: Math.max(
+      1,
+      Math.min(1000000, Math.floor(Number(raw?.minBet ?? defaultVirtualCoinSettings.minBet))),
+    ),
+    maxBet: Math.max(
+      1,
+      Math.min(1000000, Math.floor(Number(raw?.maxBet ?? defaultVirtualCoinSettings.maxBet))),
+    ),
+    rewards: rewards.length ? rewards : defaultVirtualCoinSettings.rewards,
+  };
+}
+async function getVirtualCoinSettings() {
+  const snap = await db.collection("coinSettings").doc("main").get();
+  return normalizeCoinSettings(snap.data() ?? defaultVirtualCoinSettings);
+}
+export const getVirtualCoinWallet = onCall({ region: "europe-west1" }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Login required.");
+  const [walletSnap, txSnap, settings] = await Promise.all([
+    coinWalletRef(request.auth.uid).get(),
+    db.collection("coinTransactions").where("userId", "==", request.auth.uid).limit(50).get(),
+    getVirtualCoinSettings(),
+  ]);
+  return {
+    balance: Number(walletSnap.data()?.balance ?? 0),
+    lifetimeEarned: Number(walletSnap.data()?.lifetimeEarned ?? 0),
+    lifetimeSpent: Number(walletSnap.data()?.lifetimeSpent ?? 0),
+    settings: { minBet: settings.minBet, maxBet: settings.maxBet },
+    transactions: txSnap.docs.map((item) => ({ id: item.id, ...item.data() })),
+  };
+});
+export const claimVirtualCoins = onCall({ region: "europe-west1" }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Login required.");
+  const uid = request.auth.uid;
+  const kind = String(request.data?.kind ?? "daily").toLowerCase();
+  const settings = await getVirtualCoinSettings();
+  if (kind !== "daily" && kind !== "welcome")
+    throw new HttpsError("invalid-argument", "Reward haijulikani.");
+  if (kind === "daily" && !settings.dailyGrantEnabled)
+    throw new HttpsError("failed-precondition", "Daily coins zimezimwa.");
+  const amount = kind === "daily" ? settings.dailyGrant : settings.welcomeBonus;
+  const key = kind === "daily" ? `daily-${new Date().toISOString().slice(0, 10)}` : "welcome";
+  const txRef = coinTransactionRef(uid, key);
+  const walletRef = coinWalletRef(uid);
+  let claimed = false;
+  await db.runTransaction(async (tx) => {
+    const [existing, wallet] = await Promise.all([tx.get(txRef), tx.get(walletRef)]);
+    if (existing.exists) return;
+    if (kind === "welcome" && Number(wallet.data()?.lifetimeEarned ?? 0) > 0) return;
+    if (amount < 1) return;
+    const current = Number(wallet.data()?.balance ?? 0);
+    tx.set(
+      walletRef,
+      {
+        balance: current + amount,
+        lifetimeEarned: Number(wallet.data()?.lifetimeEarned ?? 0) + amount,
+        lifetimeSpent: Number(wallet.data()?.lifetimeSpent ?? 0),
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+    tx.create(txRef, {
+      userId: uid,
+      type: "REWARD",
+      amount,
+      reason: kind === "daily" ? "Daily free coins" : "Welcome bonus",
+      idempotencyKey: key,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    claimed = true;
+  });
+  return { ok: true, claimed, amount: claimed ? amount : 0, kind };
+});
+export const adminVirtualCoinOverview = onCall({ region: "europe-west1" }, async (request) => {
+  await assertAdmin(request);
+  const [walletSnap, txSnap, settingsSnap] = await Promise.all([
+    db.collection("coinBalances").limit(1000).get(),
+    db.collection("coinTransactions").orderBy("createdAt", "desc").limit(200).get(),
+    db.collection("coinSettings").doc("main").get(),
+  ]);
+  const wallets = walletSnap.docs.map((item) => ({ uid: item.id, ...item.data() }));
+  return {
+    settings: normalizeCoinSettings(settingsSnap.data() ?? defaultVirtualCoinSettings),
+    wallets,
+    transactions: txSnap.docs.map((item) => ({ id: item.id, ...item.data() })),
+    totals: {
+      balance: wallets.reduce((sum, item: any) => sum + Number(item.balance ?? 0), 0),
+      earned: wallets.reduce((sum, item: any) => sum + Number(item.lifetimeEarned ?? 0), 0),
+      spent: wallets.reduce((sum, item: any) => sum + Number(item.lifetimeSpent ?? 0), 0),
+    },
+  };
+});
+export const adminSaveVirtualCoinSettings = onCall({ region: "europe-west1" }, async (request) => {
+  await assertAdmin(request);
+  const actor = await db.collection("users").doc(request.auth!.uid).get();
+  if (actor.data()?.role !== "SUPER_ADMIN")
+    throw new HttpsError("permission-denied", "SUPER_ADMIN only.");
+  const settings = normalizeCoinSettings(request.data ?? {});
+  if (settings.minBet > settings.maxBet)
+    throw new HttpsError("invalid-argument", "Min bet haiwezi kuzidi max bet.");
+  await db
+    .collection("coinSettings")
+    .doc("main")
+    .set(
+      { ...settings, updatedAt: FieldValue.serverTimestamp(), updatedBy: request.auth!.uid },
+      { merge: true },
+    );
+  await writeAdminActivity(request.auth!.uid, "virtual_coins.settings_updated", undefined, {
+    dailyGrantEnabled: settings.dailyGrantEnabled,
+  });
+  return { ok: true, settings };
+});
+export const adminGrantVirtualCoins = onCall({ region: "europe-west1" }, async (request) => {
+  await assertAdmin(request);
+  const uid = String(request.data?.uid ?? "").trim();
+  const amount = Math.floor(Number(request.data?.amount ?? 0));
+  const reason = String(request.data?.reason ?? "Admin reward")
+    .trim()
+    .slice(0, 160);
+  const idempotencyKey = String(request.data?.idempotencyKey ?? "").trim();
+  if (
+    !uid ||
+    !idempotencyKey ||
+    !Number.isSafeInteger(amount) ||
+    amount < 1 ||
+    amount > 1000000 ||
+    !reason
+  )
+    throw new HttpsError("invalid-argument", "UID, kiasi, sababu na idempotency key vinahitajika.");
+  const target = await db.collection("users").doc(uid).get();
+  if (!target.exists) throw new HttpsError("not-found", "User profile haipo.");
+  const txRef = coinTransactionRef(uid, idempotencyKey);
+  const walletRef = coinWalletRef(uid);
+  await db.runTransaction(async (tx) => {
+    const [existing, wallet] = await Promise.all([tx.get(txRef), tx.get(walletRef)]);
+    if (existing.exists) return;
+    const current = Number(wallet.data()?.balance ?? 0);
+    tx.set(
+      walletRef,
+      {
+        balance: current + amount,
+        lifetimeEarned: Number(wallet.data()?.lifetimeEarned ?? 0) + amount,
+        lifetimeSpent: Number(wallet.data()?.lifetimeSpent ?? 0),
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+    tx.create(txRef, {
+      userId: uid,
+      type: "GRANT",
+      amount,
+      reason,
+      idempotencyKey,
+      actorUid: request.auth!.uid,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+  });
+  await writeAdminActivity(request.auth!.uid, "virtual_coins.granted", uid, { amount, reason });
+  return { ok: true, idempotent: true };
+});
+export const placeVirtualBet = onCall({ region: "europe-west1" }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Login required.");
+  const amount = Math.floor(Number(request.data?.amount ?? 0));
+  const idempotencyKey = String(request.data?.idempotencyKey ?? "").trim();
+  const ticketId = String(request.data?.ticketId ?? "").trim();
+  if (!ticketId || !idempotencyKey || !Number.isSafeInteger(amount))
+    throw new HttpsError("invalid-argument", "Ticket, kiasi na idempotency key vinahitajika.");
+  const settings = await getVirtualCoinSettings();
+  if (amount < settings.minBet || amount > settings.maxBet)
+    throw new HttpsError("invalid-argument", "Kiasi cha coins hakipo kwenye mipaka.");
+  const ticket = await db.collection("tickets").doc(ticketId).get();
+  if (!ticket.exists || ticket.data()?.status !== "PENDING")
+    throw new HttpsError("failed-precondition", "Ticket haipokei virtual bet.");
+  const txRef = coinTransactionRef(request.auth.uid, idempotencyKey);
+  const walletRef = coinWalletRef(request.auth.uid);
+  await db.runTransaction(async (tx) => {
+    const [existing, wallet] = await Promise.all([tx.get(txRef), tx.get(walletRef)]);
+    if (existing.exists) return;
+    const balance = Number(wallet.data()?.balance ?? 0);
+    if (balance < amount)
+      throw new HttpsError("failed-precondition", "Salio la virtual coins halitoshi.");
+    tx.update(walletRef, {
+      balance: balance - amount,
+      lifetimeSpent: Number(wallet.data()?.lifetimeSpent ?? 0) + amount,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.create(txRef, {
+      userId: request.auth!.uid,
+      type: "BET",
+      amount: -amount,
+      ticketId,
+      idempotencyKey,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+  });
+  return { ok: true, amount, ticketId };
 });

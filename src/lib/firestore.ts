@@ -371,3 +371,8 @@ export async function followUser(followingId: string, followerId: string) {
   await setDoc(reference, { followingId, followerId, createdAt: serverTimestamp() });
   return true;
 }
+
+export async function getPublicSiteContent() {
+  const snapshot = await getDoc(doc(firestore, "publicSiteContent", "main"));
+  return snapshot.exists() ? (snapshot.data() as Record<string, unknown>) : null;
+}

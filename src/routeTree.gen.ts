@@ -18,6 +18,7 @@ import { Route as LeaderboardRouteImport } from './routes/leaderboard'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as MatchesRouteImport } from './routes/matches'
 import { Route as RegisterRouteImport } from './routes/register'
+import { Route as TermsRouteImport } from './routes/terms'
 import { Route as TicketsTicketIdRouteImport } from './routes/tickets/$ticketId'
 import { Route as UsersUsernameRouteImport } from './routes/users/$username'
 
@@ -66,6 +67,11 @@ const RegisterRoute = RegisterRouteImport.update({
   path: '/register',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TicketsTicketIdRoute = TicketsTicketIdRouteImport.update({
   id: '/tickets/$ticketId',
   path: '/tickets/$ticketId',
@@ -87,6 +93,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/matches': typeof MatchesRoute
   '/register': typeof RegisterRoute
+  '/terms': typeof TermsRoute
   '/tickets/$ticketId': typeof TicketsTicketIdRoute
   '/users/$username': typeof UsersUsernameRoute
 }
@@ -100,6 +107,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/matches': typeof MatchesRoute
   '/register': typeof RegisterRoute
+  '/terms': typeof TermsRoute
   '/tickets/$ticketId': typeof TicketsTicketIdRoute
   '/users/$username': typeof UsersUsernameRoute
 }
@@ -114,6 +122,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/matches': typeof MatchesRoute
   '/register': typeof RegisterRoute
+  '/terms': typeof TermsRoute
   '/tickets/$ticketId': typeof TicketsTicketIdRoute
   '/users/$username': typeof UsersUsernameRoute
 }
@@ -129,6 +138,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/matches'
     | '/register'
+    | '/terms'
     | '/tickets/$ticketId'
     | '/users/$username'
   fileRoutesByTo: FileRoutesByTo
@@ -142,6 +152,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/matches'
     | '/register'
+    | '/terms'
     | '/tickets/$ticketId'
     | '/users/$username'
   id:
@@ -155,6 +166,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/matches'
     | '/register'
+    | '/terms'
     | '/tickets/$ticketId'
     | '/users/$username'
   fileRoutesById: FileRoutesById
@@ -169,6 +181,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   MatchesRoute: typeof MatchesRoute
   RegisterRoute: typeof RegisterRoute
+  TermsRoute: typeof TermsRoute
   TicketsTicketIdRoute: typeof TicketsTicketIdRoute
   UsersUsernameRoute: typeof UsersUsernameRoute
 }
@@ -238,6 +251,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RegisterRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/tickets/$ticketId': {
       id: '/tickets/$ticketId'
       path: '/tickets/$ticketId'
@@ -265,6 +285,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   MatchesRoute: MatchesRoute,
   RegisterRoute: RegisterRoute,
+  TermsRoute: TermsRoute,
   TicketsTicketIdRoute: TicketsTicketIdRoute,
   UsersUsernameRoute: UsersUsernameRoute,
 }
