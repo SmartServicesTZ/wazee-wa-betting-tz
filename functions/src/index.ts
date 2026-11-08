@@ -5,6 +5,10 @@ import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import { choosePrediction, type TeamForm } from "./prediction-engine.js";
+import {
+  calculatePredictionAccuracy,
+  evaluatePredictionOutcome as outcome,
+} from "./prediction-settlement.js";
 initializeApp();
 const db = getFirestore();
 const API_BASE = process.env.SPORTS_API_BASE_URL ?? "https://v3.football.api-sports.io";
@@ -399,53 +403,6 @@ export const generateAiPredictions = onSchedule(
     }
   },
 );
-function outcome(selection: any, match: any): Status {
-  const hs = selection.market === "HALF_TIME" ? match.halfHomeScore : match.homeScore;
-  const as = selection.market === "HALF_TIME" ? match.halfAwayScore : match.awayScore;
-  if (hs == null || as == null) return "PENDING";
-  const p = String(selection.prediction).toUpperCase().replaceAll(" ", "");
-  const market = selection.market;
-  if (market === "BTTS") return (hs > 0 && as > 0) === (p === "YES" || p === "GG") ? "WON" : "LOST";
-  if (market === "1X2" || market === "HALF_TIME") {
-    const r = hs > as ? "HOME" : hs < as ? "AWAY" : "DRAW";
-    return (
-      p.includes("HOME") || p === "1"
-        ? r === "HOME"
-        : p.includes("AWAY") || p === "2"
-          ? r === "AWAY"
-          : r === "DRAW"
-    )
-      ? "WON"
-      : "LOST";
-  }
-  if (market === "DOUBLE_CHANCE") {
-    const r = hs > as ? "1" : hs < as ? "2" : "X";
-    return (p.includes("1X") && r !== "2") ||
-      (p.includes("X2") && r !== "1") ||
-      (p.includes("12") && r !== "X")
-      ? "WON"
-      : "LOST";
-  }
-  if (market === "OVER_UNDER") {
-    const line = Number(selection.line);
-    const total = hs + as;
-    const isOver = p.startsWith("OVER") || p.startsWith("O");
-    return (isOver ? total > line : total < line) ? "WON" : total === line ? "VOID" : "LOST";
-  }
-  if (market === "DRAW_NO_BET") {
-    if (hs === as) return "VOID";
-    const home = p.includes("HOME") || p === "1";
-    return (home && hs > as) || (!home && as > hs) ? "WON" : "LOST";
-  }
-  if (market === "HANDICAP") {
-    const line = Number(selection.line);
-    const home = p.includes("HOME") || p === "1";
-    const adjusted = home ? hs + line : as + line;
-    const other = home ? as : hs;
-    return adjusted === other ? "VOID" : adjusted > other ? "WON" : "LOST";
-  }
-  return "PENDING";
-}
 async function updateCreatorStats(uid: string) {
   const snap = await db.collection("tickets").where("creatorId", "==", uid).get();
   let won = 0,
@@ -527,7 +484,12 @@ async function settlePredictions() {
       const lostCount = Number(summary.lostCount ?? 0) + (status === "LOST" ? 1 : 0);
       const voidCount = Number(summary.voidCount ?? 0) + (status === "VOID" ? 1 : 0);
       const cancelledCount = Number(summary.cancelledCount ?? 0) + (status === "CANCELLED" ? 1 : 0);
-      const decidedCount = wonCount + lostCount;
+      const { decidedCount, accuracyPercent } = calculatePredictionAccuracy({
+        wonCount,
+        lostCount,
+        voidCount,
+        cancelledCount,
+      });
       transaction.update(matchDoc.ref, {
         "aiPrediction.status": status,
         "aiPrediction.actualScore":
@@ -546,7 +508,7 @@ async function settlePredictions() {
           voidCount,
           cancelledCount,
           decidedCount,
-          accuracyPercent: decidedCount ? Number(((wonCount / decidedCount) * 100).toFixed(2)) : 0,
+          accuracyPercent,
           updatedAt: FieldValue.serverTimestamp(),
         },
         { merge: true },
