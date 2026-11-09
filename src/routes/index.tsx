@@ -283,6 +283,30 @@ function Home() {
             </div>
           )}
         </section>
+        <section className="gsb-testimonials" aria-labelledby="testimonials-heading">
+          <div className="gsb-testimonials-mark" aria-hidden="true">
+            “
+          </div>
+          <div className="gsb-testimonials-content">
+            <span className="gsb-section-label">SAUTI YA JAMII</span>
+            <h2 id="testimonials-heading">Ushuhuda wa wanajamii</h2>
+            <p>
+              Tunapokea maoni ya watu waliotumia jukwaa. Hatuchapishi ushuhuda bila ruhusa, na
+              hatutoi madai ya ushindi wa uhakika. Kwa sasa, hakuna ushuhuda uliothibitishwa wa
+              kuchapisha.
+            </p>
+            <a
+              className="gsb-testimonials-link"
+              href="https://wa.me/255698232313?text=Habari%2C%20ningependa%20kutoa%20maoni%20kuhusu%20Wazee%20wa%20Betting%20TZ.%20Ninaruhusu%20maoni%20yangu%20kuchapishwa%3A%20ndiyo%2Fhapana."
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Toa maoni kwa hiari yako
+              <span aria-hidden="true">→</span>
+            </a>
+            <small>Usitume taarifa binafsi au za akaunti kwenye ushuhuda wa umma.</small>
+          </div>
+        </section>
 
         <div className="gsb-main-tabs" role="tablist" aria-label="Chagua aina ya mechi">
           {(
