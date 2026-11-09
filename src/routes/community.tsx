@@ -13,6 +13,7 @@ function Community() {
   const [tickets, setTickets] = useState<PublicTicket[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [accessFilter, setAccessFilter] = useState<"ALL" | "FREE" | "VIP">("ALL");
 
   useEffect(() => subscribeToAuth(setUser), []);
   useEffect(() => {
@@ -33,6 +34,13 @@ function Community() {
     };
   }, []);
 
+  const visibleTickets =
+    accessFilter === "ALL"
+      ? tickets
+      : tickets.filter((ticket) => (ticket.access ?? "FREE") === accessFilter);
+  const freeCount = tickets.filter((ticket) => (ticket.access ?? "FREE") === "FREE").length;
+  const vipCount = tickets.filter((ticket) => ticket.access === "VIP").length;
+
   return (
     <AppShell user={user}>
       <div className="page narrow community-page">
@@ -47,6 +55,28 @@ function Community() {
           </Link>
         </div>
         <div className="community-feed">
+          {!loading && !error && tickets.length > 0 && (
+            <div className="community-access-filters" role="group" aria-label="Chuja aina ya mkeka">
+              {(
+                [
+                  ["ALL", "Mikeka yote", tickets.length],
+                  ["FREE", "Bure", freeCount],
+                  ["VIP", "VIP", vipCount],
+                ] as const
+              ).map(([value, label, count]) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={accessFilter === value ? "active" : ""}
+                  aria-pressed={accessFilter === value}
+                  onClick={() => setAccessFilter(value)}
+                >
+                  {label}
+                  <span>{count}</span>
+                </button>
+              ))}
+            </div>
+          )}
           {loading ? (
             <div className="panel empty">Inapakia mikeka ya jamii...</div>
           ) : error ? (
@@ -57,17 +87,27 @@ function Community() {
                 Jaribu tena
               </button>
             </div>
-          ) : tickets.length ? (
-            tickets.map((ticket) => (
+          ) : visibleTickets.length ? (
+            visibleTickets.map((ticket) => (
               <TicketFeedCard key={ticket.id} ticket={ticket} currentUser={user} />
             ))
           ) : (
             <div className="panel empty">
-              <b>Bado hakuna mikeka ya umma.</b>
-              <span>Chapisha mkeka wako wa kwanza ili kuanzisha mjadala.</span>
-              <Link className="btn btn-primary" to="/create-ticket">
-                Tengeneza mkeka
-              </Link>
+              <b>
+                {tickets.length
+                  ? `Hakuna mikeka ya ${accessFilter === "VIP" ? "VIP" : "bure"} kwa sasa.`
+                  : "Bado hakuna mikeka ya umma."}
+              </b>
+              <span>
+                {tickets.length
+                  ? "Chagua aina nyingine au rudi baadaye."
+                  : "Chapisha mkeka wako wa kwanza ili kuanzisha mjadala."}
+              </span>
+              {!tickets.length && (
+                <Link className="btn btn-primary" to="/create-ticket">
+                  Tengeneza mkeka
+                </Link>
+              )}
             </div>
           )}
         </div>
