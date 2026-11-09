@@ -34,6 +34,11 @@ function formatPostedAt(value: unknown) {
     : "Sasa hivi";
 }
 
+function formatOptionalNumber(value: unknown, suffix = "") {
+  const number = Number(value);
+  return Number.isFinite(number) ? `${number.toFixed(2)}${suffix}` : "—";
+}
+
 export function TicketFeedCard({
   ticket,
   currentUser = null,
@@ -153,7 +158,7 @@ export function TicketFeedCard({
               <>
                 <b>{ticket.creatorName || "Mwanajamii"}</b>
                 <small>
-                  @{ticket.creatorUsername || "mwanajamii"} · {formatPostedAt(ticket.createdAt)}
+                  {ticket.creatorCountryFlag ? `${ticket.creatorCountryFlag} ` : ""}@{ticket.creatorUsername || "mwanajamii"} · {formatPostedAt(ticket.createdAt)}
                 </small>
               </>
             )}
@@ -179,7 +184,7 @@ export function TicketFeedCard({
         <div className="ticket-feed-meta">
           <span>{ticket.selectionCount ?? 0} mechi</span>
           <span>
-            Odds jumla <b>{Number(ticket.totalOdds ?? 0).toFixed(2)}</b>
+            Odds jumla <b>{formatOptionalNumber(ticket.totalOdds)}</b>
           </span>
           <span>
             {ticket.risk === "LOW"
@@ -189,8 +194,15 @@ export function TicketFeedCard({
                 : "Hatari ya kati"}
           </span>
         </div>
+        <div className="ticket-feed-finance">
+          <span>Probability <b>{formatOptionalNumber(ticket.winProbability, "%")}</b></span>
+          <span>Stake <b>{formatOptionalNumber(ticket.stake)}</b></span>
+          <span>Potential <b>{formatOptionalNumber(ticket.potentialWin)}</b></span>
+          <span>ROI <b>{formatOptionalNumber(ticket.roi, "%")}</b></span>
+        </div>
       </Link>
       <div className="ticket-feed-actions" aria-label="Vitendo vya mkeka">
+        <Link className="ticket-bet-now" to="/tickets/$ticketId" params={{ ticketId: ticket.id }}>BET NOW</Link>
         {currentUser ? (
           <button
             type="button"

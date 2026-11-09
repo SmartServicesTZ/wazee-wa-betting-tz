@@ -40,6 +40,9 @@ export type PublicTicket = {
   creatorUsername: string;
   creatorName: string;
   creatorPhotoURL?: string;
+  creatorCountryCode?: string;
+  creatorCountryFlag?: string;
+  creatorTeamLogo?: string;
   title: string;
   description?: string;
   sport: string;
@@ -47,6 +50,10 @@ export type PublicTicket = {
   visibility: "PUBLIC" | "PRIVATE";
   access: "FREE" | "VIP";
   totalOdds: number;
+  stake?: number;
+  potentialWin?: number;
+  winProbability?: number;
+  roi?: number;
   status: string;
   selectionCount: number;
   createdAt?: unknown;
@@ -475,4 +482,71 @@ export async function followUser(followingId: string, followerId: string) {
 export async function getPublicSiteContent() {
   const snapshot = await getDoc(doc(firestore, "publicSiteContent", "main"));
   return snapshot.exists() ? (snapshot.data() as Record<string, unknown>) : null;
+}
+
+export type PublicStandingRow = {
+  id: string;
+  rank?: number;
+  teamName?: string;
+  teamLogo?: string;
+  played?: number;
+  won?: number;
+  drawn?: number;
+  lost?: number;
+  goalsFor?: number;
+  goalsAgainst?: number;
+  goalDifference?: number;
+  points?: number;
+};
+
+export type PublicStandingsGroup = {
+  id: string;
+  countryCode?: string;
+  countryName: string;
+  leagueName?: string;
+  leagueId?: string;
+  updatedAt?: unknown;
+  rows: PublicStandingRow[];
+};
+
+export async function listPublicStandings(max = 100): Promise<PublicStandingsGroup[]> {
+  const snapshot = await getDocs(query(collection(firestore, "standings"), limit(max)));
+  return snapshot.docs.map((item) => {
+    const data = item.data() as Record<string, unknown>;
+    const rawRows = Array.isArray(data.rows)
+      ? data.rows
+      : Array.isArray(data.standings)
+        ? data.standings
+        : [];
+    return {
+      id: item.id,
+      countryCode: typeof data.countryCode === "string" ? data.countryCode : undefined,
+      countryName:
+        typeof data.countryName === "string"
+          ? data.countryName
+          : typeof data.country === "string"
+            ? data.country
+            : "Unknown competition",
+      leagueName: typeof data.leagueName === "string" ? data.leagueName : undefined,
+      leagueId: typeof data.leagueId === "string" ? data.leagueId : undefined,
+      updatedAt: data.updatedAt,
+      rows: rawRows.map((row, index) => {
+        const item = (row ?? {}) as Record<string, unknown>;
+        return {
+          id: String(item.id ?? item.teamId ?? `${item.teamName ?? "team"}-${index}`),
+          rank: Number(item.rank ?? item.position ?? index + 1),
+          teamName: typeof item.teamName === "string" ? item.teamName : undefined,
+          teamLogo: typeof item.teamLogo === "string" ? item.teamLogo : undefined,
+          played: Number(item.played ?? item.all?.played ?? 0),
+          won: Number(item.won ?? item.all?.win ?? 0),
+          drawn: Number(item.drawn ?? item.all?.draw ?? 0),
+          lost: Number(item.lost ?? item.all?.lose ?? 0),
+          goalsFor: Number(item.goalsFor ?? item.all?.goals?.for ?? 0),
+          goalsAgainst: Number(item.goalsAgainst ?? item.all?.goals?.against ?? 0),
+          goalDifference: Number(item.goalDifference ?? item.goalsDiff ?? 0),
+          points: Number(item.points ?? 0),
+        };
+      }),
+    } satisfies PublicStandingsGroup;
+  });
 }

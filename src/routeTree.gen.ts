@@ -14,9 +14,11 @@ import { Route as AdminRouteImport } from './routes/admin'
 import { Route as CommunityRouteImport } from './routes/community'
 import { Route as CreateTicketRouteImport } from './routes/create-ticket'
 import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as LanguagesRouteImport } from './routes/languages'
 import { Route as LeaderboardRouteImport } from './routes/leaderboard'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as MatchesRouteImport } from './routes/matches'
+import { Route as PointTablesRouteImport } from './routes/point-tables'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as TicketsTicketIdRouteImport } from './routes/tickets/$ticketId'
@@ -47,6 +49,11 @@ const DashboardRoute = DashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LanguagesRoute = LanguagesRouteImport.update({
+  id: '/languages',
+  path: '/languages',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LeaderboardRoute = LeaderboardRouteImport.update({
   id: '/leaderboard',
   path: '/leaderboard',
@@ -60,6 +67,11 @@ const LoginRoute = LoginRouteImport.update({
 const MatchesRoute = MatchesRouteImport.update({
   id: '/matches',
   path: '/matches',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PointTablesRoute = PointTablesRouteImport.update({
+  id: '/point-tables',
+  path: '/point-tables',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RegisterRoute = RegisterRouteImport.update({
@@ -89,9 +101,11 @@ export interface FileRoutesByFullPath {
   '/community': typeof CommunityRoute
   '/create-ticket': typeof CreateTicketRoute
   '/dashboard': typeof DashboardRoute
+  '/languages': typeof LanguagesRoute
   '/leaderboard': typeof LeaderboardRoute
   '/login': typeof LoginRoute
   '/matches': typeof MatchesRoute
+  '/point-tables': typeof PointTablesRoute
   '/register': typeof RegisterRoute
   '/terms': typeof TermsRoute
   '/tickets/$ticketId': typeof TicketsTicketIdRoute
@@ -103,9 +117,11 @@ export interface FileRoutesByTo {
   '/community': typeof CommunityRoute
   '/create-ticket': typeof CreateTicketRoute
   '/dashboard': typeof DashboardRoute
+  '/languages': typeof LanguagesRoute
   '/leaderboard': typeof LeaderboardRoute
   '/login': typeof LoginRoute
   '/matches': typeof MatchesRoute
+  '/point-tables': typeof PointTablesRoute
   '/register': typeof RegisterRoute
   '/terms': typeof TermsRoute
   '/tickets/$ticketId': typeof TicketsTicketIdRoute
@@ -118,9 +134,11 @@ export interface FileRoutesById {
   '/community': typeof CommunityRoute
   '/create-ticket': typeof CreateTicketRoute
   '/dashboard': typeof DashboardRoute
+  '/languages': typeof LanguagesRoute
   '/leaderboard': typeof LeaderboardRoute
   '/login': typeof LoginRoute
   '/matches': typeof MatchesRoute
+  '/point-tables': typeof PointTablesRoute
   '/register': typeof RegisterRoute
   '/terms': typeof TermsRoute
   '/tickets/$ticketId': typeof TicketsTicketIdRoute
@@ -134,9 +152,11 @@ export interface FileRouteTypes {
     | '/community'
     | '/create-ticket'
     | '/dashboard'
+    | '/languages'
     | '/leaderboard'
     | '/login'
     | '/matches'
+    | '/point-tables'
     | '/register'
     | '/terms'
     | '/tickets/$ticketId'
@@ -148,9 +168,11 @@ export interface FileRouteTypes {
     | '/community'
     | '/create-ticket'
     | '/dashboard'
+    | '/languages'
     | '/leaderboard'
     | '/login'
     | '/matches'
+    | '/point-tables'
     | '/register'
     | '/terms'
     | '/tickets/$ticketId'
@@ -162,9 +184,11 @@ export interface FileRouteTypes {
     | '/community'
     | '/create-ticket'
     | '/dashboard'
+    | '/languages'
     | '/leaderboard'
     | '/login'
     | '/matches'
+    | '/point-tables'
     | '/register'
     | '/terms'
     | '/tickets/$ticketId'
@@ -177,9 +201,11 @@ export interface RootRouteChildren {
   CommunityRoute: typeof CommunityRoute
   CreateTicketRoute: typeof CreateTicketRoute
   DashboardRoute: typeof DashboardRoute
+  LanguagesRoute: typeof LanguagesRoute
   LeaderboardRoute: typeof LeaderboardRoute
   LoginRoute: typeof LoginRoute
   MatchesRoute: typeof MatchesRoute
+  PointTablesRoute: typeof PointTablesRoute
   RegisterRoute: typeof RegisterRoute
   TermsRoute: typeof TermsRoute
   TicketsTicketIdRoute: typeof TicketsTicketIdRoute
@@ -223,6 +249,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/languages': {
+      id: '/languages'
+      path: '/languages'
+      fullPath: '/languages'
+      preLoaderRoute: typeof LanguagesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/leaderboard': {
       id: '/leaderboard'
       path: '/leaderboard'
@@ -242,6 +275,13 @@ declare module '@tanstack/react-router' {
       path: '/matches'
       fullPath: '/matches'
       preLoaderRoute: typeof MatchesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/point-tables': {
+      id: '/point-tables'
+      path: '/point-tables'
+      fullPath: '/point-tables'
+      preLoaderRoute: typeof PointTablesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/register': {
@@ -281,9 +321,11 @@ const rootRouteChildren: RootRouteChildren = {
   CommunityRoute: CommunityRoute,
   CreateTicketRoute: CreateTicketRoute,
   DashboardRoute: DashboardRoute,
+  LanguagesRoute: LanguagesRoute,
   LeaderboardRoute: LeaderboardRoute,
   LoginRoute: LoginRoute,
   MatchesRoute: MatchesRoute,
+  PointTablesRoute: PointTablesRoute,
   RegisterRoute: RegisterRoute,
   TermsRoute: TermsRoute,
   TicketsTicketIdRoute: TicketsTicketIdRoute,

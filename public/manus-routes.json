@@ -2,10 +2,12 @@
   "routes": [
     { "path": "/", "title": "Nyumbani" },
     { "path": "/matches", "title": "Mechi" },
-    { "path": "/community", "title": "Jamii" },
+    { "path": "/community", "title": "Jamii / Coupons" },
     { "path": "/create-ticket", "title": "Tengeneza mkeka" },
     { "path": "/dashboard", "title": "Dashboard" },
     { "path": "/leaderboard", "title": "Leaderboard" },
+    { "path": "/point-tables", "title": "Point Tables" },
+    { "path": "/languages", "title": "Chagua lugha" },
     { "path": "/login", "title": "Ingia" },
     { "path": "/register", "title": "Jisajili" },
     { "path": "/terms", "title": "Masharti" },

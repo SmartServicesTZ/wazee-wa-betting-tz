@@ -1,21 +1,26 @@
-# Redesign TODO
+# BetWall expansion TODO
 
-## Visual system across the application
-- [ ] Homepage, Mechi, Jamii, Tengeneza mkeka, ticket details, leaderboard, profile, login/register na admin zitumie visual system moja mpya badala ya overrides zilizorundikana.
-- [ ] Tumia palette ya navy/charcoal yenye accent moja ya lime; typography, spacing, buttons, cards na controls ziwe consistent.
-- [ ] Interface ibaki ya Kiswahili isipokuwa istilahi za mfumo zinazohitajika.
+## Navigation na profile rail
+- [ ] App shell iwe na profile header juu ya sidebar yenye picha ya user, display name/username, balance ya coins/points kutoka profile halisi, na link ya account; ikiwa balance haipo ionyeshe `—` badala ya sample balance.
+- [ ] Desktop iwe na side navigation na simu iwe na drawer/overlay yenye close button, keyboard focus na touch targets; links zote ziende kwenye route inayofanya kazi au empty state inayoeleza feature haijapata data.
+- [ ] Menyu ibebe Betting Tips, Coupons, Risk Coupons, Betswall VIP, Make Coupon, Live Scores, Buy bwCoin, Watch Video Win bwCoin, Remove Ads, My Coupons, My Wall, Best Tipsters, From Top Users, Most Played, Correct Score, Draw, HT/FT, Last Match, Goal Videos, Open/Won Bombs, Hot Coupons, Point Tables, Notifications, Language, Follow/Share Betwall, Tutorial, How to Win na Contact Us bila kudai functionality ambayo backend haijajenga.
 
-## UX and accessibility
-- [ ] Navigation iwe wazi desktop na mobile, pamoja na focus states, labels, contrast na touch targets zinazofaa.
-- [ ] Loading, error na empty states ziwe na muonekano unaoeleweka bila kuacha nafasi tupu.
-- [ ] Responsive layouts zikaguliwe kwenye takriban 375px, 768px na 1440px bila overflow au controls kufunikana.
+## Coupons feed
+- [ ] Feed ya coupons itumie tickets za umma kutoka Firestore pekee na ionyeshe creator identity, country flag/team identity pale fields zipo, kickoff, teams, choice/market, odds na status.
+- [ ] Feed iwe na tabs OPEN, WON na LOST; statuses zitoke settlement ya backend na zisibuniwe frontend.
+- [ ] Coupon card ionyeshe total odds, stake/potential win/probability/ROI pale fields hizo zimetolewa na backend; data ikikosekana ionyeshe `Haijapatikana` badala ya namba ya mfano.
+- [ ] Like, share na BET NOW/angalia ticket ziendelee kutumia existing Firebase-backed actions na responsible-betting copy.
 
-## Existing functionality and integrations
-- [ ] Hifadhi Firebase Auth, Firestore, Cloud Functions, existing routes/deep links, match filters, create-ticket flow, profiles, leaderboard, admin na community actions.
-- [ ] Like, comments, sharing, login/register na responsible-betting disclaimer viendelee kufanya kazi; data/odds/user content zisitengenezwe kwa kubuni.
-- [ ] Usibadilishe Firestore schema, rules, credentials, Firebase project au deployment secrets.
+## Profiles na rankings
+- [ ] Public profile ionyeshe followers/following, tickets, won/lost/pending, win rate, ROI na pie breakdown kwa data ya Firestore iliyosettle pekee.
+- [ ] World ranking iwe na periods za saa 24, siku 7 na siku 30; period isiyo na data ionyeshe empty state, si ranking ya kubuni.
 
-## Validation and handoff
-- [ ] Production build, lint na checks zinazopatikana zipite.
-- [ ] Tengeneza screenshots za 375px, 768px na 1440px kwa routes kuu.
-- [ ] Commit mabadiliko kwenye branch mpya na fungua Pull Request bila ku-merge au ku-deploy.
+## Language na point tables
+- [ ] Language page iwe na English, Türkçe, Deutsch, Italiano, Français, Español, Português, Kiswahili, Русский, العربية, 中文, Nederlands, فارسی, 한국어, Bahasa Indonesia, हिन्दी, বাংলা na ภาษาไทย pamoja na flag/label na selected check.
+- [ ] Preference ya lugha ihifadhiwe bila kuvunja Kiswahili cha sasa; tafsiri ambazo hazijatekelezwa zisionekane kama zimekamilika.
+- [ ] Point Tables page ionyeshe International na nchi/associations zilizo kwenye provider standings cache; rows zifunguke kuona table kamili na zionyeshe empty state ikiwa API haijatoa standings.
+
+## Data integrity na validation
+- [ ] Usitumie fake fixtures, fake odds, fake results, fake balances, fake probabilities, fake ROI, fake followers, au fake standings.
+- [ ] Usibadilishe Firebase project `wazee-wa-betting-tz-e7183`, Firestore schema/rules, deployment secrets, au repository ya Huduma za Mtandaoni.
+- [ ] Production build, function tests, route manifest verification na live smoke tests zipite; lint debt iliyopo iwe wazi bila kuficha errors.
