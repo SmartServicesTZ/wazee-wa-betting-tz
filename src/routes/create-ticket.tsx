@@ -127,15 +127,21 @@ function CreateTicket() {
   );
   const visibleMatches = useMemo(
     () =>
-      matches.filter((m) => {
-        const text = (m.homeTeamName + " " + m.awayTeamName + " " + m.leagueName).toLowerCase();
-        const day = new Date(m.kickoffAt).toISOString().slice(0, 10);
-        return (
-          text.includes(query.toLowerCase()) &&
-          (league === "ALL" || String(m.leagueName || "Ligi nyingine") === league) &&
-          (date === "ALL" || day === date)
-        );
-      }),
+      matches
+        .filter((m) => {
+          const text = (m.homeTeamName + " " + m.awayTeamName + " " + m.leagueName).toLowerCase();
+          const day = new Date(m.kickoffAt).toISOString().slice(0, 10);
+          return (
+            text.includes(query.toLowerCase()) &&
+            (league === "ALL" || String(m.leagueName || "Ligi nyingine") === league) &&
+            (date === "ALL" || day === date)
+          );
+        })
+        .sort((a, b) => {
+          const aHasOdds = (a.markets ?? []).some((market: any) => (market.options ?? []).length);
+          const bHasOdds = (b.markets ?? []).some((market: any) => (market.options ?? []).length);
+          return Number(bHasOdds) - Number(aHasOdds);
+        }),
     [matches, query, league, date],
   );
   const add = (match: any, market: MarketKey, option: any) => {
@@ -218,10 +224,16 @@ function CreateTicket() {
             <div className="panel-head">
               <div>
                 <span className="eyebrow">LIVE MATCH CENTRE</span>
-                <h3>1. Chagua mechi</h3>
+                <h3>1. Chagua mechi na option ya kubetia</h3>
               </div>
               <span className="match-count">
-                {visibleMatches.length} / {matches.length} mechi
+                {visibleMatches.length} / {matches.length} mechi ·{" "}
+                {
+                  visibleMatches.filter((m) =>
+                    (m.markets ?? []).some((market: any) => (market.options ?? []).length),
+                  ).length
+                }{" "}
+                zenye odds
               </span>
             </div>
             <div className="match-filters">

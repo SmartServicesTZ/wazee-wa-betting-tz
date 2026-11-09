@@ -604,6 +604,21 @@ main {
   color: #8ed0ff;
   font-size: 16px;
 }
+.free-slip-inline-history {
+  margin: 16px 0 12px;
+  padding-top: 12px;
+  border-top: 1px solid #ffffff12;
+}
+.free-slip-history.compact {
+  margin-top: 0;
+  padding: 10px;
+}
+.free-slip-history.compact .free-slip-history-title h3 {
+  font-size: 13px;
+}
+.free-slip-history.compact .free-slip-history-row:nth-of-type(n + 6) {
+  display: none;
+}
 .free-slip-actions {
   display: flex;
   flex-wrap: wrap;

@@ -132,7 +132,13 @@ function normalizeOdds(response) {
         }))
         .filter((value) => Number.isFinite(value.odds) && value.odds > 1);
       let market = null;
-      if (name.includes("match winner") || name === "1x2") market = "1X2";
+      if (
+        name.includes("match winner") ||
+        name.includes("match result") ||
+        name === "1x2" ||
+        name === "winner"
+      )
+        market = "1X2";
       else if (name.includes("double chance")) market = "DOUBLE_CHANCE";
       else if (name.includes("both teams score") || name.includes("both teams to score"))
         market = "BTTS";

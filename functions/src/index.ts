@@ -135,32 +135,43 @@ function normalizeFixture(item: any): Match {
 }
 function normalizeOdds(response: any[]): any[] {
   const markets: any[] = [];
-  const first = response?.[0];
-  const bets = first?.bookmakers?.[0]?.bets ?? [];
-  for (const bet of bets) {
-    const name = String(bet.name).toLowerCase();
-    const values = (bet.values ?? [])
-      .map((v: any) => ({
-        prediction: String(v.value),
-        odds: Number(v.odd),
-        line: v.handicap ? Number(v.handicap) : null,
-      }))
-      .filter((v: any) => Number.isFinite(v.odds));
-    let market: any = null;
-    if (name.includes("match winner")) market = { market: "1X2", options: values };
-    else if (name.includes("double chance")) market = { market: "DOUBLE_CHANCE", options: values };
-    else if (name.includes("both teams score")) market = { market: "BTTS", options: values };
-    else if (name.includes("goals over/under")) market = { market: "OVER_UNDER", options: values };
-    else if (name.includes("draw no bet")) market = { market: "DRAW_NO_BET", options: values };
-    else if (name.includes("asian handicap") || name.includes("handicap"))
-      market = { market: "HANDICAP", options: values };
-    if (market && market.options.length) markets.push(market);
+  const bookmakers = response?.[0]?.bookmakers ?? [];
+  for (const bookmaker of bookmakers) {
+    for (const bet of bookmaker.bets ?? []) {
+      const name = String(bet.name).toLowerCase();
+      const values = (bet.values ?? [])
+        .map((v: any) => ({
+          prediction: String(v.value),
+          odds: Number(v.odd),
+          line: v.handicap ? Number(v.handicap) : null,
+        }))
+        .filter((v: any) => Number.isFinite(v.odds));
+      let market: any = null;
+      if (name.includes("match winner") || name.includes("match result") || name === "winner")
+        market = { market: "1X2", options: values };
+      else if (name.includes("double chance"))
+        market = { market: "DOUBLE_CHANCE", options: values };
+      else if (name.includes("both teams score") || name.includes("both teams to score"))
+        market = { market: "BTTS", options: values };
+      else if (name.includes("goals over/under") || name.includes("total goals"))
+        market = { market: "OVER_UNDER", options: values };
+      else if (name.includes("draw no bet")) market = { market: "DRAW_NO_BET", options: values };
+      else if (name.includes("asian handicap") || name.includes("handicap"))
+        market = { market: "HANDICAP", options: values };
+      else if (name.includes("first half") || name.includes("half time"))
+        market = { market: "HALF_TIME", options: values };
+      if (market && market.options.length) {
+        const existing = markets.find((item) => item.market === market.market);
+        if (existing) existing.options.push(...market.options);
+        else markets.push(market);
+      }
+    }
   }
   return markets;
 }
 const ODDS_CACHE_MS = 6 * 60 * 60 * 1000;
 const TEAM_FORM_CACHE_MS = 12 * 60 * 60 * 1000;
-const MAX_ODDS_FIXTURES_PER_DATE = 3;
+const MAX_ODDS_FIXTURES_PER_DATE = 5;
 function timestampMillis(value: any): number {
   if (!value) return 0;
   if (typeof value.toMillis === "function") return value.toMillis();
