@@ -1,5 +1,5 @@
-export const MIN_SELECTION_ODDS = 1.4;
-export const MAX_SELECTION_ODDS = 1.8;
+export const MIN_SELECTION_ODDS = 1.35;
+export const MAX_SELECTION_ODDS = 1.6;
 
 export function isEligibleSelectionOdds(value) {
   const odds = Number(value);
@@ -7,10 +7,9 @@ export function isEligibleSelectionOdds(value) {
 }
 
 export const AUTO_TARGETS = [
-  { target: 2, min: 1.96, max: 2.35, key: "2" },
-  { target: 3, min: 2.7, max: 3.4, key: "3" },
-  { target: 5, min: 4.5, max: 5.7, key: "5" },
-  { target: 10, min: 9, max: 11.5, key: "10" },
+  { target: 3, min: 2.85, max: 3.15, key: "3" },
+  { target: 5, min: 4.75, max: 5.25, key: "5" },
+  { target: 10, min: 9.5, max: 10.5, key: "10" },
 ];
 
 export function selectTargetCombination(candidates, target, minSelections = 2, maxSelections = 5) {

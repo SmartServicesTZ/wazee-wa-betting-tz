@@ -3,7 +3,7 @@ name: Generate daily automatic tickets
 on:
   workflow_dispatch:
   schedule:
-    # 01:15 Africa/Dar_es_Salaam (UTC+3); one run publishes up to four target slips.
+    # 01:15 Africa/Dar_es_Salaam (UTC+3); one run publishes target slips 3, 5 and 10.
     - cron: "15 22 * * *"
 
 permissions:

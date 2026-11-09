@@ -706,10 +706,13 @@ async function runAutoTicket() {
   return { created: true, ticketId: ticketRef.id, selections: selections.length, totalOdds };
 }
 export const generateAutoTicket = onSchedule(
-  { schedule: "every 30 minutes", timeZone: "Africa/Dar_es_Salaam", region: "europe-west1" },
+  { schedule: "every 24 hours", timeZone: "Africa/Dar_es_Salaam", region: "europe-west1" },
   async () => {
     try {
-      const result = await runAutoTicket();
+      const result = {
+        created: false,
+        reason: "daily-free-target-generator-owns-odds-3-5-10",
+      };
       await db
         .collection("api_logs")
         .add({ type: "auto-ticket", ok: true, result, createdAt: FieldValue.serverTimestamp() });
@@ -726,12 +729,10 @@ export const generateAutoTicket = onSchedule(
 );
 export const adminGenerateAutoTicket = onCall({ region: "europe-west1" }, async (request) => {
   await assertAdmin(request);
-  try {
-    return await runAutoTicket();
-  } catch (e) {
-    console.error("manual auto ticket failed", e);
-    throw new HttpsError("internal", "Auto ticket imeshindikana.");
-  }
+  return {
+    created: false,
+    reason: "free-target-tickets-3-5-10-run-through-daily-generator",
+  };
 });
 export const syncSports = onSchedule(
   { schedule: "every 10 minutes", timeZone: "Africa/Dar_es_Salaam", region: "europe-west1" },
