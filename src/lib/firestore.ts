@@ -54,6 +54,25 @@ export type PublicTicket = {
   automatedDisclosure?: string;
 };
 
+export type PublicFreeTicket = PublicTicket & {
+  targetOdds?: number;
+  automationWindow?: string;
+  selections: Array<{
+    id?: string;
+    matchId: string;
+    market?: string;
+    prediction: string;
+    odds: number;
+    homeTeam: string;
+    awayTeam: string;
+    homeTeamLogo?: string | null;
+    awayTeamLogo?: string | null;
+    kickoffAt?: unknown;
+    leagueName?: string;
+    status?: string;
+  }>;
+};
+
 export type TicketComment = {
   id: string;
   ticketId: string;
@@ -172,6 +191,38 @@ export async function listPublicTickets(max = 20) {
         creatorWinRate: Number(publicData?.winRate ?? 0),
         creatorSettledTicketCount: Number(publicData?.settledTicketCount ?? 0),
       } as PublicTicket;
+    }),
+  );
+}
+
+export async function listAutomatedFreeTickets(max = 60): Promise<PublicFreeTicket[]> {
+  const snapshot = await getDocs(
+    query(
+      collection(firestore, "tickets"),
+      where("automated", "==", true),
+      limit(Math.min(100, max)),
+    ),
+  );
+  const candidates = snapshot.docs
+    .map((item) => ({ id: item.id, ...item.data() }) as PublicFreeTicket)
+    .filter((ticket) => ticket.access === "FREE" && [3, 5, 10].includes(Number(ticket.targetOdds)))
+    .sort((a, b) => timestampMillis(b.createdAt) - timestampMillis(a.createdAt))
+    .slice(0, max);
+  return Promise.all(
+    candidates.map(async (ticket) => {
+      const selections = await getDocs(
+        query(
+          collection(firestore, "tickets", ticket.id, "selections"),
+          orderBy("createdAt", "asc"),
+        ),
+      );
+      return {
+        ...ticket,
+        selections: selections.docs.map((item) => ({
+          id: item.id,
+          ...item.data(),
+        })) as PublicFreeTicket["selections"],
+      };
     }),
   );
 }

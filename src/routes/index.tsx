@@ -5,6 +5,7 @@ import type { User } from "firebase/auth";
 import { AppShell } from "../components/app-shell";
 import { TicketFeedCard } from "../components/ticket-feed-card";
 import { TeamLogo } from "../components/team-logo";
+import { FreeSlipGallery } from "../components/free-slip-gallery";
 import {
   listCurrentAndUpcomingMatches,
   listPublicTickets,
@@ -255,6 +256,7 @@ function Home() {
           )}
         </section>
 
+        <FreeSlipGallery />
         <div className="gsb-main-tabs" role="tablist" aria-label="Chagua aina ya mechi">
           {(
             [

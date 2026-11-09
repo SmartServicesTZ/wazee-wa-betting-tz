@@ -497,6 +497,214 @@ main {
   display: grid;
   gap: 11px;
 }
+.free-slip-gallery {
+  width: min(1180px, calc(100% - 28px));
+  margin: 26px auto;
+  padding: clamp(18px, 3vw, 30px);
+  border: 1px solid #234d7a;
+  border-radius: 22px;
+  background: linear-gradient(145deg, #0c2341, #091421 70%);
+  box-shadow: 0 18px 48px #00000025;
+}
+.free-slip-heading,
+.free-slip-poster-head,
+.free-slip-history-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+.free-slip-heading h2,
+.free-slip-poster h3,
+.free-slip-history h3 {
+  margin: 6px 0 4px;
+  font-family: "Space Grotesk", sans-serif;
+}
+.free-slip-heading p,
+.free-slip-poster p {
+  margin: 0;
+  color: #abc0d7;
+  font-size: 12px;
+}
+.free-slip-risk {
+  color: #ffd38a;
+  font-size: 11px;
+  font-weight: 800;
+}
+.free-slip-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 22px 0 16px;
+}
+.free-slip-tabs button,
+.free-slip-history-toggle {
+  border: 1px solid #2a527b;
+  border-radius: 12px;
+  background: #0d2949;
+  color: #b8c9dd;
+  padding: 12px 10px;
+  font-weight: 900;
+}
+.free-slip-tabs button.active {
+  border-color: #70b7ff;
+  background: #1d66d1;
+  color: #fff;
+}
+.free-slip-poster {
+  padding: 18px;
+  border: 1px solid #32659a;
+  border-radius: 17px;
+  background: #071a32;
+}
+.free-slip-poster-head strong {
+  color: #8ed0ff;
+  font:
+    800 30px "Space Grotesk",
+    sans-serif;
+}
+.free-slip-selections {
+  display: grid;
+  gap: 8px;
+  margin: 18px 0;
+}
+.free-slip-selection {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  border-radius: 12px;
+  background: #102c50;
+}
+.free-slip-number {
+  color: #70b7ff;
+  font-weight: 900;
+}
+.free-slip-teams > div {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 14px;
+}
+.free-slip-teams .team-logo {
+  width: 20px;
+  height: 20px;
+}
+.free-slip-teams b {
+  font-size: 12px;
+}
+.free-slip-teams small {
+  display: block;
+  margin-top: 4px;
+  color: #b8c9dd;
+  font-size: 10px;
+}
+.free-slip-odd {
+  color: #8ed0ff;
+  font-size: 16px;
+}
+.free-slip-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.free-slip-actions .btn {
+  font-size: 11px;
+}
+.free-slip-history-toggle {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  margin-top: 14px;
+  text-align: left;
+}
+.free-slip-history {
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px solid #234d7a;
+  border-radius: 14px;
+  background: #081a2f;
+}
+.free-slip-history-title {
+  align-items: center;
+  margin-bottom: 8px;
+}
+.free-slip-history-title span {
+  color: #8ea8c2;
+  font-size: 11px;
+}
+.free-slip-history-row {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto auto;
+  gap: 10px;
+  align-items: center;
+  padding: 11px 4px;
+  border-top: 1px solid #ffffff12;
+  text-decoration: none;
+}
+.free-slip-history-row svg {
+  color: #70b7ff;
+}
+.free-slip-history-row b,
+.free-slip-history-row strong {
+  font-size: 12px;
+}
+.free-slip-history-row small {
+  display: block;
+  margin-top: 3px;
+  color: #9fb4ca;
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.free-slip-history-row strong {
+  color: #8ed0ff;
+}
+.free-slip-empty {
+  display: grid;
+  place-items: center;
+  gap: 6px;
+  min-height: 110px;
+  padding: 20px;
+  color: #b8c9dd;
+  text-align: center;
+}
+.free-slip-empty svg {
+  color: #70b7ff;
+}
+@media (max-width: 600px) {
+  .free-slip-gallery {
+    width: calc(100% - 20px);
+    padding: 14px;
+  }
+  .free-slip-heading {
+    display: block;
+  }
+  .free-slip-risk {
+    display: block;
+    margin-top: 8px;
+  }
+  .free-slip-poster {
+    padding: 12px;
+  }
+  .free-slip-poster-head strong {
+    font-size: 24px;
+  }
+  .free-slip-teams > div {
+    display: flex;
+    margin-right: 0;
+  }
+  .free-slip-history-row {
+    grid-template-columns: 20px minmax(0, 1fr) auto;
+  }
+  .free-slip-history-row .status {
+    grid-column: 2 / -1;
+    justify-self: start;
+  }
+}
 .gsb-main-tabs {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
