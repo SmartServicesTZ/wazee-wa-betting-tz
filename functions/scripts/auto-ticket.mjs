@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { AUTO_TARGETS, selectTargetCombination } from "./auto-ticket-targets.mjs";
+import { LIVE_MATCH_STATUSES, shouldSyncFixtureStatus } from "./live-sync.mjs";
 import { cert, getApps, initializeApp } from "firebase-admin/app";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 
@@ -585,7 +586,70 @@ async function generateDailyTickets() {
   return { results };
 }
 
+// Source changes can trigger one quota-light live-only sync from GitHub Actions.
+async function syncLiveFixtures() {
+  const date = dateInTanzania();
+  const previouslyLiveSnapshot = await db
+    .collection("matches")
+    .where("status", "in", LIVE_MATCH_STATUSES)
+    .limit(100)
+    .get();
+  const previouslyLiveIds = new Set(previouslyLiveSnapshot.docs.map((document) => document.id));
+  const fixtures = await api("fixtures", { date });
+  const diagnostics = {
+    date,
+    receivedFixtures: fixtures.length,
+    updatedFixtures: 0,
+    activeLiveFixtures: 0,
+    completedOrRescheduledFixtures: 0,
+    malformedFixtures: 0,
+    statusCounts: {},
+  };
+
+  for (const raw of fixtures) {
+    const match = normalizeFixture(raw);
+    if (!match) {
+      diagnostics.malformedFixtures++;
+      continue;
+    }
+    const status = String(match.status).toUpperCase();
+    diagnostics.statusCounts[status] = (diagnostics.statusCounts[status] ?? 0) + 1;
+    if (!shouldSyncFixtureStatus(status, match.eventId, previouslyLiveIds)) continue;
+
+    await db
+      .collection("matches")
+      .doc(match.eventId)
+      .set(
+        {
+          ...match,
+          externalProvider: "api-football",
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
+    diagnostics.updatedFixtures++;
+    if (LIVE_MATCH_STATUSES.includes(status)) diagnostics.activeLiveFixtures++;
+    else diagnostics.completedOrRescheduledFixtures++;
+  }
+  return diagnostics;
+}
+
 async function main() {
+  if (process.argv.includes("--sync-live-only")) {
+    const result = await syncLiveFixtures();
+    const diagnostics = {
+      firebaseProjectId: serviceAccount.project_id,
+      timeZone,
+      runnerTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      runnerNow: new Date().toISOString(),
+      apiStats,
+      result,
+    };
+    await writeLog({ type: "live-score-sync", ok: true, ...diagnostics });
+    console.log(JSON.stringify(diagnostics));
+    return;
+  }
+
   const today = dateInTanzania();
   const dates = [today, addCalendarDays(today, 1)];
   const syncResults = [];
@@ -614,11 +678,12 @@ try {
   await main();
 } catch (error) {
   await writeLog({
-    type: "github-auto-ticket",
+    type: process.argv.includes("--sync-live-only") ? "live-score-sync" : "github-auto-ticket",
     ok: false,
     error: String(error),
     apiStats,
     diagnostics: {
+      firebaseProjectId: serviceAccount.project_id,
       timeZone,
       runnerTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       runnerNow: new Date().toISOString(),

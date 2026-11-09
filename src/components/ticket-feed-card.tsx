@@ -158,8 +158,13 @@ export function TicketFeedCard({
               </>
             )}
           </span>
-          <span className={`status status-${String(ticket.status ?? "PENDING").toLowerCase()}`}>
-            {ticket.status ?? "PENDING"}
+          <span className="ticket-feed-badges">
+            <span className={`ticket-access-badge ${ticket.access === "VIP" ? "vip" : "free"}`}>
+              {ticket.access === "VIP" ? "VIP" : "BURE"}
+            </span>
+            <span className={`status status-${String(ticket.status ?? "PENDING").toLowerCase()}`}>
+              {ticket.status ?? "PENDING"}
+            </span>
           </span>
         </div>
         <h3>{ticket.title || "Mkeka wa jamii"}</h3>

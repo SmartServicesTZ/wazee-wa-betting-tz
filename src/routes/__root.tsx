@@ -10,6 +10,7 @@ import {
 import { useEffect, type ReactNode } from "react";
 import { Toaster } from "sonner";
 import appCss from "../styles.css?url";
+import refreshCss from "../site-refresh.css?inline";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   head: () => ({
@@ -17,7 +18,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "Wazee wa Betting TZ" },
-      { name: "theme-color", content: "#071714" },
+      { name: "theme-color", content: "#f2f6f2" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
@@ -48,6 +49,7 @@ function RootShell({ children }: { children: ReactNode }) {
     <html lang="sw">
       <head>
         <HeadContent />
+        <style dangerouslySetInnerHTML={{ __html: refreshCss }} />
       </head>
       <body>
         {children}

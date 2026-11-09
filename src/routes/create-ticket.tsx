@@ -385,11 +385,14 @@ function CreateTicket() {
                 </select>
               </label>
               <label>
-                Access
+                Aina ya mkeka
                 <select value={access} onChange={(e) => setAccess(e.target.value as any)}>
-                  <option value="FREE">FREE</option>
+                  <option value="FREE">Bure (FREE)</option>
                   <option value="VIP">VIP</option>
                 </select>
+                <small className="ticket-access-help">
+                  Hii huweka lebo ya mkeka tu. Malipo au kufunga mikeka ya VIP bado hakujawashwa.
+                </small>
               </label>
             </div>
             <label>

@@ -2536,3 +2536,41 @@ label {
   font-size: 12px;
   line-height: 1.5;
 }
+.matches-page-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.match-refresh {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 42px;
+  padding: 0 13px;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.match-refresh:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+@media (max-width: 620px) {
+  .matches-page-actions {
+    width: 100%;
+  }
+  .matches-page-actions select {
+    flex: 1;
+    min-width: 0;
+  }
+  .match-refresh {
+    min-height: 40px;
+    padding: 0 10px;
+    font-size: 12px;
+  }
+}

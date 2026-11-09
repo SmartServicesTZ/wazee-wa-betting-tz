@@ -4,6 +4,11 @@ import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
+import { choosePrediction, type TeamForm } from "./prediction-engine.js";
+import {
+  calculatePredictionAccuracy,
+  evaluatePredictionOutcome as outcome,
+} from "./prediction-settlement.js";
 initializeApp();
 const db = getFirestore();
 const API_BASE = process.env.SPORTS_API_BASE_URL ?? "https://v3.football.api-sports.io";
@@ -153,83 +158,251 @@ function normalizeOdds(response: any[]): any[] {
   }
   return markets;
 }
+const ODDS_CACHE_MS = 6 * 60 * 60 * 1000;
+const TEAM_FORM_CACHE_MS = 12 * 60 * 60 * 1000;
+const MAX_ODDS_FIXTURES_PER_DATE = 3;
+function timestampMillis(value: any): number {
+  if (!value) return 0;
+  if (typeof value.toMillis === "function") return value.toMillis();
+  const parsed = new Date(value).getTime();
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+function hasFreshOdds(match: any, now = Date.now()): boolean {
+  const fetchedAt = timestampMillis(match?.oddsFetchedAt);
+  return (
+    match?.oddsSource === "api-football" &&
+    Array.isArray(match?.markets) &&
+    match.markets.length > 0 &&
+    fetchedAt > 0 &&
+    fetchedAt <= now + 60_000 &&
+    fetchedAt >= now - ODDS_CACHE_MS
+  );
+}
 async function syncDate(date: string) {
   const fixtures = await api("/fixtures", { date });
+  const now = Date.now();
+  const oddsFixtureIds = new Set(
+    fixtures
+      .map(normalizeFixture)
+      .filter((match: Match) => {
+        const kickoff = new Date(match.kickoffAt).getTime();
+        return (
+          ["NS", "TBD"].includes(String(match.status).toUpperCase()) &&
+          kickoff > now &&
+          kickoff <= now + 48 * 60 * 60 * 1000
+        );
+      })
+      .sort((a: Match, b: Match) => Date.parse(a.kickoffAt) - Date.parse(b.kickoffAt))
+      .slice(0, MAX_ODDS_FIXTURES_PER_DATE)
+      .map((match: Match) => match.eventId),
+  );
   let count = 0;
   for (const raw of fixtures) {
     const m = normalizeFixture(raw);
-    let markets: any[] = [];
-    try {
-      markets = normalizeOdds(await api("/odds", { fixture: m.eventId }));
-    } catch (e) {
-      console.error("odds", m.eventId, e);
+    const ref = db.collection("matches").doc(m.eventId);
+    const existing = (await ref.get()).data() ?? {};
+    const update: Record<string, any> = {
+      ...m,
+      externalProvider: "api-football",
+      ...(isFinalStatus(m.status) && m.homeScore != null && m.awayScore != null
+        ? { resultSource: "api-football", resultVerifiedAt: FieldValue.serverTimestamp() }
+        : {}),
+      updatedAt: FieldValue.serverTimestamp(),
+    };
+    if (oddsFixtureIds.has(m.eventId) && !hasFreshOdds(existing, now)) {
+      try {
+        const markets = normalizeOdds(await api("/odds", { fixture: m.eventId }));
+        update.markets = markets;
+        update.oddsFetchedAt = FieldValue.serverTimestamp();
+        update.oddsSource = "api-football";
+      } catch (error) {
+        console.error("odds", m.eventId, error);
+      }
     }
-    await db
-      .collection("matches")
-      .doc(m.eventId)
-      .set(
-        {
-          ...m,
-          markets,
-          externalProvider: "api-football",
-          ...(isFinalStatus(m.status) && m.homeScore != null && m.awayScore != null
-            ? { resultSource: "api-football", resultVerifiedAt: FieldValue.serverTimestamp() }
-            : {}),
-          updatedAt: FieldValue.serverTimestamp(),
-        },
-        { merge: true },
-      );
+    await ref.set(update, { merge: true });
     count++;
   }
   return count;
 }
-function outcome(selection: any, match: any): Status {
-  const hs = selection.market === "HALF_TIME" ? match.halfHomeScore : match.homeScore;
-  const as = selection.market === "HALF_TIME" ? match.halfAwayScore : match.awayScore;
-  if (hs == null || as == null) return "PENDING";
-  const p = String(selection.prediction).toUpperCase().replaceAll(" ", "");
-  const market = selection.market;
-  if (market === "BTTS") return (hs > 0 && as > 0) === (p === "YES" || p === "GG") ? "WON" : "LOST";
-  if (market === "1X2" || market === "HALF_TIME") {
-    const r = hs > as ? "HOME" : hs < as ? "AWAY" : "DRAW";
-    return (
-      p.includes("HOME") || p === "1"
-        ? r === "HOME"
-        : p.includes("AWAY") || p === "2"
-          ? r === "AWAY"
-          : r === "DRAW"
-    )
-      ? "WON"
-      : "LOST";
-  }
-  if (market === "DOUBLE_CHANCE") {
-    const r = hs > as ? "1" : hs < as ? "2" : "X";
-    return (p.includes("1X") && r !== "2") ||
-      (p.includes("X2") && r !== "1") ||
-      (p.includes("12") && r !== "X")
-      ? "WON"
-      : "LOST";
-  }
-  if (market === "OVER_UNDER") {
-    const line = Number(selection.line);
-    const total = hs + as;
-    const isOver = p.startsWith("OVER") || p.startsWith("O");
-    return (isOver ? total > line : total < line) ? "WON" : total === line ? "VOID" : "LOST";
-  }
-  if (market === "DRAW_NO_BET") {
-    if (hs === as) return "VOID";
-    const home = p.includes("HOME") || p === "1";
-    return (home && hs > as) || (!home && as > hs) ? "WON" : "LOST";
-  }
-  if (market === "HANDICAP") {
-    const line = Number(selection.line);
-    const home = p.includes("HOME") || p === "1";
-    const adjusted = home ? hs + line : as + line;
-    const other = home ? as : hs;
-    return adjusted === other ? "VOID" : adjusted > other ? "WON" : "LOST";
-  }
-  return "PENDING";
+function normalizeTeamForm(teamId: string, fixtures: any[]): TeamForm | null {
+  const results = fixtures
+    .map((item) => {
+      const status = String(item?.fixture?.status?.short ?? "").toUpperCase();
+      if (item?.goals?.home == null || item?.goals?.away == null) return null;
+      const homeGoals = Number(item?.goals?.home);
+      const awayGoals = Number(item?.goals?.away);
+      const homeId = String(item?.teams?.home?.id ?? "");
+      const awayId = String(item?.teams?.away?.id ?? "");
+      if (
+        !["FT", "AET", "PEN"].includes(status) ||
+        !Number.isFinite(homeGoals) ||
+        !Number.isFinite(awayGoals) ||
+        ![homeId, awayId].includes(teamId)
+      )
+        return null;
+      return {
+        homeGoals,
+        awayGoals,
+        venue: (teamId === homeId ? "HOME" : "AWAY") as "HOME" | "AWAY",
+        playedAt: new Date(item.fixture.date).getTime(),
+      };
+    })
+    .filter((item): item is NonNullable<typeof item> => Boolean(item))
+    .sort((a, b) => b.playedAt - a.playedAt)
+    .slice(0, 5);
+  if (!results.length) return null;
+  let wins = 0;
+  let draws = 0;
+  let losses = 0;
+  let goalsFor = 0;
+  let goalsAgainst = 0;
+  const form = results.map((result) => {
+    const scored = result.venue === "HOME" ? result.homeGoals : result.awayGoals;
+    const conceded = result.venue === "HOME" ? result.awayGoals : result.homeGoals;
+    goalsFor += scored;
+    goalsAgainst += conceded;
+    if (scored > conceded) {
+      wins++;
+      return "W";
+    }
+    if (scored === conceded) {
+      draws++;
+      return "D";
+    }
+    losses++;
+    return "L";
+  });
+  return {
+    teamId,
+    sampleSize: results.length,
+    form: form.join("-").toUpperCase(),
+    wins,
+    draws,
+    losses,
+    scoredAverage: Number((goalsFor / results.length).toFixed(2)),
+    concededAverage: Number((goalsAgainst / results.length).toFixed(2)),
+    results: results.map(({ homeGoals, awayGoals, venue }) => ({ homeGoals, awayGoals, venue })),
+  };
 }
+async function getTeamForm(teamId: string): Promise<TeamForm | null> {
+  const ref = db.collection("team_form_cache").doc(teamId);
+  const cachedSnapshot = await ref.get();
+  const cached = cachedSnapshot.data();
+  if (
+    cached?.source === "api-football" &&
+    timestampMillis(cached.fetchedAt) >= Date.now() - TEAM_FORM_CACHE_MS
+  )
+    return (cached.form as TeamForm | null) ?? null;
+  const fixtures = await api("/fixtures", { team: teamId, last: "5" });
+  const form = normalizeTeamForm(teamId, fixtures);
+  await ref.set(
+    { teamId, form, source: "api-football", fetchedAt: FieldValue.serverTimestamp() },
+    { merge: true },
+  );
+  return form;
+}
+async function runPredictionEngine() {
+  const now = Date.now();
+  const snapshot = await db
+    .collection("matches")
+    .where("kickoffAt", ">=", new Date(now).toISOString())
+    .orderBy("kickoffAt", "asc")
+    .limit(100)
+    .get();
+  const candidates = snapshot.docs
+    .map((item) => ({ ...item.data(), id: item.id }))
+    .filter(
+      (match: any) =>
+        !match.aiPrediction &&
+        match.externalProvider === "api-football" &&
+        hasFreshOdds(match, now) &&
+        ["NS", "TBD"].includes(String(match.status).toUpperCase()) &&
+        isUpcoming(match, now) &&
+        match.homeId &&
+        match.awayId,
+    )
+    .slice(0, 3);
+  const formCache = new Map<string, TeamForm | null>();
+  const getCachedForm = async (teamId: string) => {
+    if (!formCache.has(teamId)) {
+      try {
+        formCache.set(teamId, await getTeamForm(teamId));
+      } catch (error) {
+        console.error("team form", teamId, error);
+        formCache.set(teamId, null);
+      }
+    }
+    return formCache.get(teamId) ?? null;
+  };
+  let created = 0;
+  let skippedForInsufficientData = 0;
+  for (const match of candidates as any[]) {
+    const [homeForm, awayForm] = await Promise.all([
+      getCachedForm(String(match.homeId)),
+      getCachedForm(String(match.awayId)),
+    ]);
+    const pick = choosePrediction(
+      {
+        id: String(match.id),
+        homeTeamName: String(match.homeTeamName),
+        awayTeamName: String(match.awayTeamName),
+        markets: Array.isArray(match.markets) ? match.markets : [],
+      },
+      homeForm,
+      awayForm,
+    );
+    if (!pick) {
+      skippedForInsufficientData++;
+      continue;
+    }
+    const prediction = {
+      ...pick,
+      fixtureId: String(match.id),
+      homeTeamName: match.homeTeamName,
+      awayTeamName: match.awayTeamName,
+      leagueName: match.leagueName,
+      kickoffAt: match.kickoffAt,
+      oddsSource: "api-football",
+      oddsFetchedAt: match.oddsFetchedAt,
+      statisticsSource: "api-football",
+      homeFormSample: homeForm?.sampleSize ?? 0,
+      awayFormSample: awayForm?.sampleSize ?? 0,
+      status: "PENDING",
+      createdAt: FieldValue.serverTimestamp(),
+    };
+    const matchRef = db.collection("matches").doc(String(match.id));
+    const wasCreated = await db.runTransaction(async (transaction) => {
+      const latest = await transaction.get(matchRef);
+      if (!latest.exists || latest.data()?.aiPrediction) return false;
+      transaction.update(matchRef, { aiPrediction: prediction });
+      return true;
+    });
+    if (wasCreated) created++;
+  }
+  return { examined: candidates.length, created, skippedForInsufficientData };
+}
+export const generateAiPredictions = onSchedule(
+  { schedule: "every 6 hours", timeZone: "Africa/Dar_es_Salaam", region: "europe-west1" },
+  async () => {
+    try {
+      const result = await runPredictionEngine();
+      await db.collection("api_logs").add({
+        type: "ai-predictions",
+        ok: true,
+        result,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+    } catch (error) {
+      console.error("AI predictions failed", error);
+      await db.collection("api_logs").add({
+        type: "ai-predictions",
+        ok: false,
+        error: String(error),
+        createdAt: FieldValue.serverTimestamp(),
+      });
+    }
+  },
+);
 async function updateCreatorStats(uid: string) {
   const snap = await db.collection("tickets").where("creatorId", "==", uid).get();
   let won = 0,
@@ -278,6 +451,74 @@ function isFinalStatus(status: string) {
 function isCancelledStatus(status: string) {
   return ["PST", "CANC", "ABD", "AWD", "WO"].includes(String(status).toUpperCase());
 }
+async function settlePredictions() {
+  const pending = await db
+    .collection("matches")
+    .where("aiPrediction.status", "==", "PENDING")
+    .limit(250)
+    .get();
+  const summaryRef = db.collection("matches").doc("ai_prediction_summary");
+  let settled = 0;
+  for (const matchDoc of pending.docs) {
+    const match = matchDoc.data();
+    const prediction = match.aiPrediction;
+    const matchStatus = String(match.status ?? "").toUpperCase();
+    if (!prediction || prediction.status !== "PENDING") continue;
+    const isCancelled = isCancelledStatus(matchStatus) && match.externalProvider === "api-football";
+    if (
+      !isCancelled &&
+      (!match.resultSource || !match.resultVerifiedAt || !isFinalStatus(matchStatus))
+    )
+      continue;
+    const status: Status = isCancelled ? "CANCELLED" : outcome(prediction, match);
+    if (status === "PENDING") continue;
+    const applied = await db.runTransaction(async (transaction) => {
+      const [currentSnapshot, summarySnapshot] = await Promise.all([
+        transaction.get(matchDoc.ref),
+        transaction.get(summaryRef),
+      ]);
+      const currentPrediction = currentSnapshot.data()?.aiPrediction;
+      if (!currentSnapshot.exists || currentPrediction?.status !== "PENDING") return false;
+      const summary = summarySnapshot.data() ?? {};
+      const wonCount = Number(summary.wonCount ?? 0) + (status === "WON" ? 1 : 0);
+      const lostCount = Number(summary.lostCount ?? 0) + (status === "LOST" ? 1 : 0);
+      const voidCount = Number(summary.voidCount ?? 0) + (status === "VOID" ? 1 : 0);
+      const cancelledCount = Number(summary.cancelledCount ?? 0) + (status === "CANCELLED" ? 1 : 0);
+      const { decidedCount, accuracyPercent } = calculatePredictionAccuracy({
+        wonCount,
+        lostCount,
+        voidCount,
+        cancelledCount,
+      });
+      transaction.update(matchDoc.ref, {
+        "aiPrediction.status": status,
+        "aiPrediction.actualScore":
+          match.homeScore == null || match.awayScore == null
+            ? null
+            : `${match.homeScore}-${match.awayScore}`,
+        "aiPrediction.resultSource": isCancelled ? "api-football" : match.resultSource,
+        "aiPrediction.resultVerifiedAt": match.resultVerifiedAt ?? FieldValue.serverTimestamp(),
+        "aiPrediction.settledAt": FieldValue.serverTimestamp(),
+      });
+      transaction.set(
+        summaryRef,
+        {
+          wonCount,
+          lostCount,
+          voidCount,
+          cancelledCount,
+          decidedCount,
+          accuracyPercent,
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
+      return true;
+    });
+    if (applied) settled++;
+  }
+  return settled;
+}
 async function settle() {
   const snap = await db.collection("tickets").where("status", "==", "PENDING").limit(100).get();
   let settled = 0;
@@ -324,6 +565,7 @@ async function settle() {
       settled++;
     }
   }
+  await settlePredictions();
   return settled;
 }
 
@@ -390,6 +632,8 @@ async function runAutoTicket() {
     .filter(
       (match) =>
         isUpcoming(match) &&
+        ["NS", "TBD"].includes(String(match.status).toUpperCase()) &&
+        hasFreshOdds(match) &&
         (!settings.leagueIds?.length || settings.leagueIds.includes(String(match.leagueId))),
     );
   const selections: any[] = [];
@@ -402,13 +646,15 @@ async function runAutoTicket() {
       line: option.line ?? null,
       prediction: String(option.prediction),
       odds: option.odds,
+      oddsSource: match.oddsSource,
+      oddsFetchedAt: match.oddsFetchedAt,
       homeTeam: match.homeTeamName,
       awayTeam: match.awayTeamName,
       kickoffAt: match.kickoffAt,
       leagueName: match.leagueName,
       status: "PENDING",
     });
-    if (selections.length >= Math.max(2, Math.min(10, settings.maxSelections))) break;
+    if (selections.length >= Math.max(2, Math.min(5, settings.maxSelections))) break;
   }
   const totalOdds = selections.reduce((total, selection) => total * Number(selection.odds), 1);
   if (
@@ -440,6 +686,8 @@ async function runAutoTicket() {
     visibility: "PUBLIC",
     access: "FREE",
     totalOdds: Number(totalOdds.toFixed(2)),
+    oddsSource: "api-football",
+    oddsVerifiedAt: FieldValue.serverTimestamp(),
     status: "PENDING",
     selectionCount: selections.length,
     automated: true,
@@ -458,10 +706,13 @@ async function runAutoTicket() {
   return { created: true, ticketId: ticketRef.id, selections: selections.length, totalOdds };
 }
 export const generateAutoTicket = onSchedule(
-  { schedule: "every 30 minutes", timeZone: "Africa/Dar_es_Salaam", region: "europe-west1" },
+  { schedule: "every 24 hours", timeZone: "Africa/Dar_es_Salaam", region: "europe-west1" },
   async () => {
     try {
-      const result = await runAutoTicket();
+      const result = {
+        created: false,
+        reason: "daily-free-target-generator-owns-odds-3-5-10",
+      };
       await db
         .collection("api_logs")
         .add({ type: "auto-ticket", ok: true, result, createdAt: FieldValue.serverTimestamp() });
@@ -478,12 +729,10 @@ export const generateAutoTicket = onSchedule(
 );
 export const adminGenerateAutoTicket = onCall({ region: "europe-west1" }, async (request) => {
   await assertAdmin(request);
-  try {
-    return await runAutoTicket();
-  } catch (e) {
-    console.error("manual auto ticket failed", e);
-    throw new HttpsError("internal", "Auto ticket imeshindikana.");
-  }
+  return {
+    created: false,
+    reason: "free-target-tickets-3-5-10-run-through-daily-generator",
+  };
 });
 export const syncSports = onSchedule(
   { schedule: "every 10 minutes", timeZone: "Africa/Dar_es_Salaam", region: "europe-west1" },

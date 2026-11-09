@@ -234,6 +234,24 @@ function timestampMillis(value: unknown) {
   return 0;
 }
 
+export async function listAiPredictions(max = 100) {
+  const snapshot = await getDocs(
+    query(
+      collection(firestore, "matches"),
+      orderBy("aiPrediction.createdAt", "desc"),
+      limit(Math.min(500, Math.max(1, max))),
+    ),
+  );
+  return snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
+}
+
+export async function getAiPredictionSummary() {
+  const snapshot = await getDoc(doc(firestore, "matches", "ai_prediction_summary"));
+  return snapshot.exists()
+    ? snapshot.data()
+    : { wonCount: 0, lostCount: 0, voidCount: 0, cancelledCount: 0, decidedCount: 0 };
+}
+
 async function listMatchesFrom(kickoffAt: string, max: number) {
   const snapshot = await getDocs(
     query(
@@ -250,7 +268,18 @@ export async function listUpcomingMatches(max = 150) {
   return listMatchesFrom(new Date().toISOString(), max);
 }
 
-const LIVE_MATCH_STATUSES = ["LIVE", "IN_PLAY", "1H", "HT", "2H", "ET", "BT", "P", "INT", "SUSP"];
+export const LIVE_MATCH_STATUSES = [
+  "LIVE",
+  "IN_PLAY",
+  "1H",
+  "HT",
+  "2H",
+  "ET",
+  "BT",
+  "P",
+  "INT",
+  "SUSP",
+];
 
 export async function listCurrentAndUpcomingMatches(max = 150) {
   const [upcoming, liveSnapshot] = await Promise.all([
@@ -259,10 +288,13 @@ export async function listCurrentAndUpcomingMatches(max = 150) {
       query(
         collection(firestore, "matches"),
         where("status", "in", LIVE_MATCH_STATUSES),
-        limit(50),
+        limit(100),
       ),
     ),
   ]);
+  // A live status from the sports provider is authoritative. Do not hide a
+  // currently-live fixture just because its scheduled kickoff timestamp is old
+  // (timezone corrections, delayed kickoffs, and resumed matches can cause this).
   const live = liveSnapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
   const unique = new Map([...live, ...upcoming].map((match) => [match.id, match]));
   return [...unique.values()].sort(
@@ -270,11 +302,28 @@ export async function listCurrentAndUpcomingMatches(max = 150) {
   );
 }
 
-export async function listMatches(max = 30) {
-  const snapshot = await getDocs(
-    query(collection(firestore, "matches"), orderBy("kickoffAt", "asc"), limit(max)),
-  );
-  return snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
+export async function listMatches(max = 100) {
+  const cutoff = new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString();
+  const [recent, liveSnapshot] = await Promise.all([
+    listMatchesFrom(cutoff, max),
+    getDocs(
+      query(
+        collection(firestore, "matches"),
+        where("status", "in", LIVE_MATCH_STATUSES),
+        limit(100),
+      ),
+    ),
+  ]);
+  // A live status from the sports provider is authoritative. Do not hide a
+  // currently-live fixture just because its scheduled kickoff timestamp is old
+  // (timezone corrections, delayed kickoffs, and resumed matches can cause this).
+  const live = liveSnapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
+  const unique = new Map([...live, ...recent].map((match) => [match.id, match]));
+  return [...unique.values()]
+    .sort(
+      (a, b) => new Date(String(a.kickoffAt)).getTime() - new Date(String(b.kickoffAt)).getTime(),
+    )
+    .slice(0, max);
 }
 
 export async function getTicket(ticketId: string) {
