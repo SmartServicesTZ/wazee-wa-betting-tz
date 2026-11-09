@@ -1031,3 +1031,91 @@ textarea::placeholder {
     animation-duration: 0.01ms !important;
   }
 }
+
+.gsb-responsible-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 16px 0;
+  padding: 14px 16px;
+  border: 1px solid #d7e8d8;
+  border-radius: 15px;
+  background: linear-gradient(110deg, #f0f8ed, #ffffff 72%);
+  color: #244535;
+}
+.gsb-responsible-icon {
+  display: grid;
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 11px;
+  background: #dff1d9;
+  color: #126b40;
+}
+.gsb-responsible-copy {
+  flex: 1;
+  min-width: 0;
+}
+.gsb-responsible-copy > b {
+  display: block;
+  margin: 1px 0 3px;
+  font-size: 13px;
+}
+.gsb-responsible-copy p {
+  margin: 0;
+  color: #587365;
+  font-size: 12px;
+  line-height: 1.55;
+}
+.gsb-responsible-copy ul {
+  display: grid;
+  gap: 5px;
+  margin: 10px 0 0;
+  padding-left: 19px;
+  color: #456353;
+  font-size: 12px;
+  line-height: 1.55;
+}
+.gsb-responsible-toggle {
+  flex: 0 0 auto;
+  min-height: 40px;
+  padding: 7px 12px;
+  border: 1px solid #c9dfca;
+  border-radius: 10px;
+  background: #fff;
+  color: #126b40;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.gsb-responsible-toggle:hover {
+  background: #f5fbf2;
+}
+@media (max-width: 760px) {
+  .bottom-nav a {
+    min-height: 48px;
+    justify-content: center;
+  }
+  .gsb-odds-area button,
+  .gsb-market-tabs button,
+  .gsb-main-tabs button {
+    min-height: 44px;
+  }
+}
+@media (max-width: 520px) {
+  .gsb-responsible-card {
+    gap: 9px;
+    margin: 12px 0;
+    padding: 12px;
+  }
+  .gsb-responsible-copy p,
+  .gsb-responsible-copy ul {
+    font-size: 11px;
+  }
+  .gsb-responsible-toggle {
+    min-height: 44px;
+    padding-inline: 10px;
+  }
+}

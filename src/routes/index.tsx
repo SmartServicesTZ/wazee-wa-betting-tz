@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { CalendarDays, ChevronDown, ChevronUp, Search, Trophy } from "lucide-react";
+import { CalendarDays, ChevronDown, ChevronUp, Search, ShieldCheck, Trophy } from "lucide-react";
 import type { User } from "firebase/auth";
 import { AppShell } from "../components/app-shell";
 import { TicketFeedCard } from "../components/ticket-feed-card";
@@ -73,6 +73,7 @@ function Home() {
   const [highlightsOpen, setHighlightsOpen] = useState(true);
   const [searchOpen, setSearchOpen] = useState(false);
   const [slipOpen, setSlipOpen] = useState(false);
+  const [safetyOpen, setSafetyOpen] = useState(false);
 
   useEffect(() => subscribeToAuth(setUser), []);
 
@@ -183,6 +184,34 @@ function Home() {
   return (
     <AppShell user={user}>
       <div className="gsb-page">
+        <section className="gsb-responsible-card" aria-labelledby="responsible-heading">
+          <div className="gsb-responsible-icon" aria-hidden="true">
+            <ShieldCheck size={19} />
+          </div>
+          <div className="gsb-responsible-copy">
+            <b id="responsible-heading">Cheza kwa uwajibikaji</b>
+            <p>Mikeka ni utabiri tu, si dhamana ya ushindi. Coins za tovuti ni za majaribio.</p>
+            <div id="responsible-tips" hidden={!safetyOpen}>
+              <ul>
+                <li>Weka muda wa kutumia tovuti na pumzika mara kwa mara.</li>
+                <li>Usikopeshe wala kutumia fedha za mahitaji muhimu kwa kubashiri.</li>
+                <li>
+                  Ukihisi betting inakuletea msongo, simama na tafuta msaada kutoka kwa mtu
+                  unayemwamini.
+                </li>
+              </ul>
+            </div>
+          </div>
+          <button
+            type="button"
+            className="gsb-responsible-toggle"
+            aria-expanded={safetyOpen}
+            aria-controls="responsible-tips"
+            onClick={() => setSafetyOpen((open) => !open)}
+          >
+            {safetyOpen ? "Funga" : "Vidokezo"}
+          </button>
+        </section>
         <section className="gsb-feature-strip" aria-label="Mechi zilizo karibu">
           <div className="gsb-feature-title">
             <span>W</span>
