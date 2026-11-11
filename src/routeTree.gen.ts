@@ -21,6 +21,7 @@ import { Route as MatchesRouteImport } from './routes/matches'
 import { Route as PointTablesRouteImport } from './routes/point-tables'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as TermsRouteImport } from './routes/terms'
+import { Route as MatchesMatchIdRouteImport } from './routes/matches/$matchId'
 import { Route as TicketsTicketIdRouteImport } from './routes/tickets/$ticketId'
 import { Route as UsersUsernameRouteImport } from './routes/users/$username'
 
@@ -84,6 +85,11 @@ const TermsRoute = TermsRouteImport.update({
   path: '/terms',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MatchesMatchIdRoute = MatchesMatchIdRouteImport.update({
+  id: '/$matchId',
+  path: '/$matchId',
+  getParentRoute: () => MatchesRoute,
+} as any)
 const TicketsTicketIdRoute = TicketsTicketIdRouteImport.update({
   id: '/tickets/$ticketId',
   path: '/tickets/$ticketId',
@@ -104,10 +110,11 @@ export interface FileRoutesByFullPath {
   '/languages': typeof LanguagesRoute
   '/leaderboard': typeof LeaderboardRoute
   '/login': typeof LoginRoute
-  '/matches': typeof MatchesRoute
+  '/matches': typeof MatchesRouteWithChildren
   '/point-tables': typeof PointTablesRoute
   '/register': typeof RegisterRoute
   '/terms': typeof TermsRoute
+  '/matches/$matchId': typeof MatchesMatchIdRoute
   '/tickets/$ticketId': typeof TicketsTicketIdRoute
   '/users/$username': typeof UsersUsernameRoute
 }
@@ -120,10 +127,11 @@ export interface FileRoutesByTo {
   '/languages': typeof LanguagesRoute
   '/leaderboard': typeof LeaderboardRoute
   '/login': typeof LoginRoute
-  '/matches': typeof MatchesRoute
+  '/matches': typeof MatchesRouteWithChildren
   '/point-tables': typeof PointTablesRoute
   '/register': typeof RegisterRoute
   '/terms': typeof TermsRoute
+  '/matches/$matchId': typeof MatchesMatchIdRoute
   '/tickets/$ticketId': typeof TicketsTicketIdRoute
   '/users/$username': typeof UsersUsernameRoute
 }
@@ -137,10 +145,11 @@ export interface FileRoutesById {
   '/languages': typeof LanguagesRoute
   '/leaderboard': typeof LeaderboardRoute
   '/login': typeof LoginRoute
-  '/matches': typeof MatchesRoute
+  '/matches': typeof MatchesRouteWithChildren
   '/point-tables': typeof PointTablesRoute
   '/register': typeof RegisterRoute
   '/terms': typeof TermsRoute
+  '/matches/$matchId': typeof MatchesMatchIdRoute
   '/tickets/$ticketId': typeof TicketsTicketIdRoute
   '/users/$username': typeof UsersUsernameRoute
 }
@@ -159,6 +168,7 @@ export interface FileRouteTypes {
     | '/point-tables'
     | '/register'
     | '/terms'
+    | '/matches/$matchId'
     | '/tickets/$ticketId'
     | '/users/$username'
   fileRoutesByTo: FileRoutesByTo
@@ -175,6 +185,7 @@ export interface FileRouteTypes {
     | '/point-tables'
     | '/register'
     | '/terms'
+    | '/matches/$matchId'
     | '/tickets/$ticketId'
     | '/users/$username'
   id:
@@ -191,6 +202,7 @@ export interface FileRouteTypes {
     | '/point-tables'
     | '/register'
     | '/terms'
+    | '/matches/$matchId'
     | '/tickets/$ticketId'
     | '/users/$username'
   fileRoutesById: FileRoutesById
@@ -204,7 +216,7 @@ export interface RootRouteChildren {
   LanguagesRoute: typeof LanguagesRoute
   LeaderboardRoute: typeof LeaderboardRoute
   LoginRoute: typeof LoginRoute
-  MatchesRoute: typeof MatchesRoute
+  MatchesRoute: typeof MatchesRouteWithChildren
   PointTablesRoute: typeof PointTablesRoute
   RegisterRoute: typeof RegisterRoute
   TermsRoute: typeof TermsRoute
@@ -298,6 +310,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TermsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/matches/$matchId': {
+      id: '/matches/$matchId'
+      path: '/$matchId'
+      fullPath: '/matches/$matchId'
+      preLoaderRoute: typeof MatchesMatchIdRouteImport
+      parentRoute: typeof MatchesRoute
+    }
     '/tickets/$ticketId': {
       id: '/tickets/$ticketId'
       path: '/tickets/$ticketId'
@@ -315,6 +334,17 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface MatchesRouteChildren {
+  MatchesMatchIdRoute: typeof MatchesMatchIdRoute
+}
+
+const MatchesRouteChildren: MatchesRouteChildren = {
+  MatchesMatchIdRoute: MatchesMatchIdRoute,
+}
+
+const MatchesRouteWithChildren =
+  MatchesRoute._addFileChildren(MatchesRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
@@ -324,7 +354,7 @@ const rootRouteChildren: RootRouteChildren = {
   LanguagesRoute: LanguagesRoute,
   LeaderboardRoute: LeaderboardRoute,
   LoginRoute: LoginRoute,
-  MatchesRoute: MatchesRoute,
+  MatchesRoute: MatchesRouteWithChildren,
   PointTablesRoute: PointTablesRoute,
   RegisterRoute: RegisterRoute,
   TermsRoute: TermsRoute,

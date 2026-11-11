@@ -273,7 +273,12 @@ function Matches() {
           <div className="match-list">
             {ranked.length ? (
               ranked.map((match) => (
-                <div className="match" key={match.id}>
+                <Link
+                  className="match"
+                  to="/matches/$matchId"
+                  params={{ matchId: String(match.id) }}
+                  key={match.id}
+                >
                   <div>
                     <small>
                       {match.leagueName} • {match.status}
