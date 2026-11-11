@@ -86,3 +86,79 @@
 .rb-shell .admin-sidebar-nav a.active,.rb-shell .admin-menu button.active{color:#d4f36c}
 @media(max-width:900px){.rb-content .home-v2 .home-hero-grid{grid-template-columns:1fr 1fr}.rb-content .home-v2 .home-hero-stats{grid-template-columns:repeat(3,minmax(0,1fr))}.rb-content .home-v2 .home-hero-stats>p{grid-column:1/-1;margin:0}.rb-content .home-v2 .home-editorial-grid{grid-template-columns:1fr}}
 @media(max-width:650px){.rb-content .home-v2{padding:13px 11px 36px}.rb-content .home-v2 .home-hero-grid{grid-template-columns:1fr;gap:16px;padding:18px}.rb-content .home-v2 .home-hero h1{font-size:32px}.rb-content .home-v2 .home-hero-stats{gap:7px;padding:0 13px 14px}.rb-content .home-v2 .home-hero-stats>div{padding:9px 8px}.rb-content .home-v2 .home-hero-stats>div b{font-size:19px}.rb-content .home-v2 .home-hero-stats>div span{font-size:7px}.rb-content .home-v2 .home-editorial-grid{grid-template-columns:1fr}.rb-content .home-v2 .home-live-panel,.rb-content .home-v2 .home-community-panel,.rb-content .home-v2 .home-fixtures{padding:13px}.rb-content .home-v2 .home-match-grid{grid-template-columns:1fr}.rb-content .home-v2 .home-fixture-toolbar{align-items:stretch;flex-wrap:wrap}.rb-content .home-v2 .home-search{flex:1 1 100%}.rb-content .home-v2 .home-sort{flex:1}.rb-content .home-v2 .home-market-tabs{overflow-x:auto;flex-wrap:nowrap}.rb-content .home-v2 .home-market-tabs button{white-space:nowrap}.rb-content .home-v2 .home-section-head h2{font-size:17px}}
+
+
+/* Consistent sports-market visual language across secondary routes */
+.rb-content .page{max-width:1500px}
+.rb-content .page.narrow{max-width:1180px}
+.rb-content .page-title{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;margin-bottom:20px}
+.rb-content .page-title h1{margin:5px 0 7px;font-size:clamp(26px,3.2vw,38px);letter-spacing:-.045em}
+.rb-content .page-title p{max-width:720px;margin:0;color:#718199;font-size:12px;line-height:1.6}
+.rb-content .eyebrow{font-size:9px;font-weight:900;letter-spacing:.16em}
+.rb-content .section-toolbar{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin:26px 0 15px}
+.rb-content .section-toolbar h2{margin:4px 0;font-size:21px}
+.rb-content .section-toolbar p{margin:4px 0 0;color:#7b899d;font-size:11px}
+.rb-content .panel{padding:clamp(15px,2vw,22px)}
+.rb-content .stat-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:17px 0}
+.rb-content .stat-box{display:grid;gap:6px;padding:17px;border:1px solid #e0e7f0;border-radius:14px;background:#fff;box-shadow:0 8px 22px #152f560a}
+.rb-content .stat-box small{color:#7a899d;font-size:10px;font-weight:800}
+.rb-content .stat-box b{color:#174d91;font-size:25px;letter-spacing:-.04em}
+.rb-content .profile-hero{display:flex;align-items:center;gap:15px;padding:20px}
+.rb-content .profile-hero>div:nth-child(2){min-width:0;flex:1}
+.rb-content .profile-hero h1{margin:4px 0;font-size:22px}
+.rb-content .profile-hero p{margin:0;color:#74839a;font-size:11px}
+.rb-content .ticket-list{display:grid;gap:8px}
+.rb-content .ticket{display:flex;align-items:center;gap:12px;padding:13px;border:1px solid #e4eaf2;border-radius:12px;background:#fbfcfe;text-decoration:none}
+.rb-content .ticket:hover,.rb-content .ticket-feed-card:hover{border-color:#b8cfe9;box-shadow:0 8px 20px #174d9110}
+.rb-content .ticket-main{min-width:0;flex:1}
+.rb-content .ticket-line{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.rb-content .ticket-line b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#1b2d48;font-size:12px}
+.rb-content .ticket-main>small,.rb-content .ticket-meta{color:#7c8ba0;font-size:10px}
+.rb-content .ticket-meta{display:flex;gap:12px;margin-top:6px}
+.rb-content .ticket-meta strong{color:#1b579a}
+.rb-content .coupon-tabs,.rb-content .community-access-filters{display:flex;flex-wrap:wrap;gap:7px;margin:12px 0}
+.rb-content .coupon-tabs button,.rb-content .community-access-filters button{display:flex;align-items:center;gap:8px;min-height:38px;padding:8px 13px;border:1px solid #e0e7f0;border-radius:10px;background:#fff;color:#667890;font-size:11px;font-weight:800}
+.rb-content .coupon-tabs button.is-active,.rb-content .community-access-filters button.active{border-color:#174d91;background:#174d91;color:#fff}
+.rb-content .community-feed{display:grid;gap:12px}
+.rb-content .ticket-feed-card{padding:16px}
+.rb-content .ticket-feed-card h3{color:#192d49;font-size:16px}
+.rb-content .ticket-feed-author-copy small,.rb-content .ticket-feed-meta{color:#7b899d}
+.rb-content .ticket-feed-actions button,.rb-content .ticket-feed-actions a{border-color:#e1e8f0;background:#f8fafd;color:#536982}
+.rb-content .ticket-feed-actions .ticket-reaction-active{border-color:#bad4f0;background:#edf5ff;color:#17549a}
+.rb-content .builder-grid{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(290px,.8fr);gap:16px}
+.rb-content .match-picker,.rb-content .ticket-preview,.rb-content .match-builder-card{border:1px solid #e0e7f0;border-radius:14px;background:#fff}
+.rb-content .match-builder{display:grid;gap:9px}
+.rb-content .match-builder-card{padding:13px;box-shadow:none}
+.rb-content .match-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.rb-content .match-head small{color:#7a899e}
+.rb-content .match-head b{color:#1a2d49;font-size:12px}
+.rb-content .market-accordion{margin-top:10px;border-top:1px solid #e8edf4;padding-top:9px}
+.rb-content .market-accordion summary{color:#245e9e;font-size:11px;font-weight:800}
+.rb-content .market-grid{display:grid;gap:8px;margin-top:9px}
+.rb-content .market{padding:9px;border:1px solid #e6ebf2;border-radius:10px;background:#f9fbfd}
+.rb-content .market>small{color:#718199}
+.rb-content .market button,.rb-content .selected-odd{border-color:#dfe7f0;background:#fff;color:#5c7089}
+.rb-content .market button.selected-odd,.rb-content .market button:hover{border-color:#2874bd;background:#eaf3ff;color:#174d91}
+.rb-content .odds-box{border:1px solid #dbe7f4;border-radius:13px;background:#edf5ff;color:#174d91}
+.rb-content .odds-box b{color:#174d91}
+.rb-content .match-filters{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}
+.rb-content .match-filters .search{flex:1 1 210px}
+.rb-content .match-filters input,.rb-content .match-filters select{min-height:40px;border:1px solid #e0e7f0;border-radius:10px;background:#fff;color:#415671}
+.rb-content .prediction-section{border:1px solid #e0e7f0;border-radius:15px;background:#fff;box-shadow:0 9px 26px #152f560b}
+.rb-content .prediction-card{border-color:#e1e8f0;border-radius:12px;background:#f9fbfd}
+.rb-content .prediction-accuracy strong{color:#1c63a9}
+.rb-content .prediction-notice{border-left-color:#2b75bc;background:#f0f6fd;color:#687b94}
+.rb-content .admin-layout{border-radius:16px;overflow:hidden}
+.rb-content .admin-sidebar{background:#0d3472}
+.rb-content .admin-sidebar-nav a.active,.rb-content .admin-menu button.active{background:#ffffff17;color:#d4f36c}
+.rb-content .admin-topbar,.rb-content .admin-card,.rb-content .admin-list-card{border-color:#e0e7f0;background:#fff;box-shadow:0 9px 25px #152f560b}
+.rb-content .admin-table th{background:#f1f5fa;color:#63758d}
+.rb-content .admin-table td{border-top-color:#e8edf4;color:#344963}
+.rb-content .auth-card{box-shadow:0 18px 50px #17365d14}
+.rb-content .auth-card h1{color:#172944}
+.rb-content .auth-card .btn-primary{background:#174d91}
+.rb-content .form-error,.rb-content .auth-error{color:#b43d4a}
+.rb-content .empty{display:grid;justify-items:center;gap:9px;padding:28px;text-align:center;color:#77869a}
+.rb-content .empty b{color:#243750}
+@media(max-width:900px){.rb-content .builder-grid{grid-template-columns:1fr}.rb-content .stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.rb-content .page-title{align-items:flex-start;flex-direction:column}.rb-content .page-title h1{font-size:27px}.rb-content .section-toolbar{align-items:flex-start;flex-direction:column}.rb-content .profile-hero{align-items:flex-start;flex-wrap:wrap;padding:15px}.rb-content .profile-hero>button{margin-left:auto}.rb-content .stat-grid{gap:8px}.rb-content .stat-box{padding:12px}.rb-content .stat-box b{font-size:21px}.rb-content .match-head{align-items:flex-start;flex-direction:column}.rb-content .coupon-tabs{overflow-x:auto;flex-wrap:nowrap}.rb-content .coupon-tabs button{white-space:nowrap}}
