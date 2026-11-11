@@ -2,24 +2,23 @@
 
 ## Approach
 
-Redesign hii inatumia design system moja ya mobile-first kwenye routes zote zilizopo. Data, Firebase Auth, Firestore schema, Cloud Functions, routes na deployment config hazibadilishwi. Mabadiliko yamejikita kwenye `src/styles.css`, shell/navigation, accessibility polish, na route manifest ya static preview.
+Redesign hii inatumia design system moja ya mobile-first kwenye routes zilizopo. Branch hii imeanzia kwenye `origin/main` ya sasa na imebeba commit ya frontend redesign pekee; PR #7 ya live scores imeachwa tofauti na OPEN. Data, Firebase Auth, Firestore schema, Cloud Functions, routes, security rules na deployment config hazibadilishwi.
 
-## Design
+## Design direction
 
-- **Style options:** Matchday editorial (0.06); dark sports terminal (0.04); community bulletin (0.08).
-- **Chosen movement:** Matchday editorial — premium sports product yenye hierarchy ya magazeti ya mechi, panels za compact na accents za ushindani.
-- **Core principles:** taarifa muhimu ionekane haraka; controls ziwe touch-friendly; content halisi pekee ndiyo ionekane; consistency kati ya home, community, ticket details, profile na admin.
-- **Color philosophy:** charcoal/navy hujenga uaminifu na kusomeka vizuri; lime ni signature action/status color; teal ni supporting data color; hakuna rainbow palette.
-- **Layout paradigm:** featured horizontal match rail, asymmetric hero kwenye desktop, stacked content kwenye simu, na floating bet slip inayobaki karibu na thumb.
-- **Signature elements:** lime signal line, match cards zenye league eyebrow, na pill metadata kwa risk/odds/status.
-- **Interaction:** selected odds, active tabs, focus rings na hover states zionyeshe mabadiliko bila animation nzito; reduced-motion iheshimiwe.
-- **Typography:** Manrope kwa body, Space Grotesk kwa headlines/brand; hierarchy yenye line-height pana kwa Kiswahili.
-- **Brand essence:** kitovu cha mikeka na jamii ya michezo Tanzania; wazi, makini, ya jamii.
-- **Brand voice:** “Chagua kwa taarifa. Cheza kwa uwajibikaji.” na “Mikeka ya jamii, data halisi.”
+Chosen direction ni light-first matchday editorial: soft green canvas, white surfaces, green action color, typography ya Manrope/Space Grotesk, match cards zenye league eyebrow na pill metadata kwa risk/odds/status. Dark/night-match theme inapatikana kwa toggle ya mtumiaji na preference huhifadhiwa locally. Layout ni responsive, touch-friendly na inaheshimu reduced motion.
 
-## Project structure
+## Preserved functionality
 
-- `src/components/app-shell.tsx`: global navigation, account entry na mobile navigation.
-- `src/routes/*`: existing page flows and Firebase-backed interactions preserved.
-- `src/styles.css`: single source of truth for visual system, responsive breakpoints and accessibility.
-- `public/manus-routes.json`: route manifest for preview tooling and deep-link verification.
+Existing homepage, matches, community, ticket builder, ticket details, leaderboard, profile, login/register na protected admin flows zimehifadhiwa. Existing API/Firebase data pekee ndiyo inaonekana; hakuna fixtures, odds, scores, user content au payment state ya kubuni inayowasilishwa kama live.
+
+## Files
+
+- `src/components/app-shell.tsx`: global navigation na persistent theme toggle.
+- `src/styles.css`: light-first visual system, dark theme variables na route-wide responsive surfaces.
+- `src/routes/*`: existing page flows preserved.
+- `public/manus-routes.json`: existing route manifest.
+
+## Stage 2 direction
+
+Baada ya approval ya branch safi, ongeza Marketplace preview, Community profile/follow polish, Seller Center demo, User Account surfaces na Wallet read-only demo kama UI-only additions. Purchase/earnings/withdrawal controls zibaki DEMO/DISABLED mpaka backend/payment approvals zipatikane. Hakuna production deployment mpaka approval ya Project Lead.

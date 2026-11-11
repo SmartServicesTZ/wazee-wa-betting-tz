@@ -1,5 +1,15 @@
 import { Link } from "@tanstack/react-router";
-import { Bell, Home, ListPlus, ShieldCheck, Trophy, UserRound, Users } from "lucide-react";
+import {
+  Bell,
+  Home,
+  ListPlus,
+  Moon,
+  ShieldCheck,
+  Sun,
+  Trophy,
+  UserRound,
+  Users,
+} from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { getUserProfile } from "../lib/firestore";
 import { PredictorBadge } from "./predictor-badge";
@@ -17,7 +27,18 @@ type PublicProfileSummary = {
 export function AppShell({ children, user }: { children: ReactNode; user?: ShellUser | null }) {
   const [adminRole, setAdminRole] = useState(false);
   const [publicProfile, setPublicProfile] = useState<PublicProfileSummary | null>(null);
+  const [theme, setTheme] = useState<"light" | "dark">("light");
   const uid = user?.uid;
+  useEffect(() => {
+    const stored = window.localStorage.getItem("wbt-theme");
+    const next = stored === "dark" ? "dark" : "light";
+    setTheme(next);
+    document.documentElement.dataset.theme = next;
+  }, []);
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    window.localStorage.setItem("wbt-theme", theme);
+  }, [theme]);
   useEffect(() => {
     let active = true;
     if (!uid) {
@@ -71,6 +92,15 @@ export function AppShell({ children, user }: { children: ReactNode; user?: Shell
           )}
         </nav>
         <div className="top-user">
+          <button
+            className="theme-toggle"
+            type="button"
+            aria-label={theme === "light" ? "Washa dark mode" : "Washa light mode"}
+            title={theme === "light" ? "Dark mode" : "Light mode"}
+            onClick={() => setTheme((value) => (value === "light" ? "dark" : "light"))}
+          >
+            {theme === "light" ? <Moon size={17} /> : <Sun size={17} />}
+          </button>
           <Bell size={19} />
           {adminRole && (
             <Link to="/admin" className="admin-entry">

@@ -7,6 +7,26 @@
     BlinkMacSystemFont,
     "Segoe UI",
     sans-serif;
+  color-scheme: light;
+  --bg: #f4f8f5;
+  --bg-deep: #e9f1ec;
+  --surface: #ffffff;
+  --surface-2: #f0f6f2;
+  --surface-3: #e4eee8;
+  --line: #d4e2da;
+  --line-soft: #e6eee9;
+  --text: #10231a;
+  --muted: #607369;
+  --muted-2: #8b9c93;
+  --accent: #116b4d;
+  --accent-soft: #116b4d14;
+  --teal: #147a73;
+  --gold: #a96e1a;
+  --danger: #b43d4d;
+  --success: #21824e;
+  --shadow: 0 24px 70px #183b2e18;
+}
+[data-theme="dark"] {
   color-scheme: dark;
   --bg: #081018;
   --bg-deep: #050a10;
@@ -2242,4 +2262,96 @@ label {
     transition: none !important;
     animation: none !important;
   }
+}
+
+/* Light-first product skin. Dark mode keeps the original night-match palette above. */
+:root:not([data-theme="dark"]) body {
+  background:
+    radial-gradient(circle at 88% -10%, #d9eee4 0, transparent 32rem),
+    radial-gradient(circle at 8% 18%, #e9f4ee 0, transparent 28rem), var(--bg);
+}
+:root:not([data-theme="dark"]) .topbar {
+  background: #ffffffeb;
+  border-bottom-color: var(--line);
+}
+:root:not([data-theme="dark"]) .brand-mark {
+  color: #ffffff;
+}
+:root:not([data-theme="dark"]) .panel,
+:root:not([data-theme="dark"]) .profile-hero,
+:root:not([data-theme="dark"]) .auth-card,
+:root:not([data-theme="dark"]) .gsb-feature-card,
+:root:not([data-theme="dark"]) .live-scores-section,
+:root:not([data-theme="dark"]) .gsb-home-community {
+  background: linear-gradient(145deg, #ffffff, #f4f9f6);
+  box-shadow: 0 18px 50px #183b2e12;
+}
+:root:not([data-theme="dark"]) .gsb-match-list,
+:root:not([data-theme="dark"]) .ticket-feed-card,
+:root:not([data-theme="dark"]) .live-score-card,
+:root:not([data-theme="dark"]) .gsb-slip-panel,
+:root:not([data-theme="dark"]) .admin-card,
+:root:not([data-theme="dark"]) .admin-list-card {
+  background: #ffffff;
+}
+:root:not([data-theme="dark"]) .gsb-match-row,
+:root:not([data-theme="dark"]) .ticket-inline-comments {
+  background: #f8fbf9;
+}
+:root:not([data-theme="dark"]) .match-builder-card,
+:root:not([data-theme="dark"]) .match-picker,
+:root:not([data-theme="dark"]) .match-card,
+:root:not([data-theme="dark"]) .selection-card {
+  background: #ffffff;
+  color: var(--text);
+  border-color: var(--line);
+}
+:root:not([data-theme="dark"]) .match-builder-card:hover,
+:root:not([data-theme="dark"]) .match-picker:hover {
+  border-color: var(--accent);
+  box-shadow: 0 12px 30px #183b2e12;
+}
+:root:not([data-theme="dark"]) .gsb-highlights,
+:root:not([data-theme="dark"]) .gsb-filter-row select,
+:root:not([data-theme="dark"]) .gsb-filter-row button,
+:root:not([data-theme="dark"]) .gsb-odds-area > button,
+:root:not([data-theme="dark"]) input,
+:root:not([data-theme="dark"]) textarea,
+:root:not([data-theme="dark"]) select {
+  background: #ffffff;
+  color: var(--text);
+}
+:root:not([data-theme="dark"]) .gsb-odds-area > button:hover,
+:root:not([data-theme="dark"]) .gsb-odds-area > button.selected {
+  background: var(--accent-soft);
+}
+:root:not([data-theme="dark"]) .gsb-odds-area > button.selected,
+:root:not([data-theme="dark"]) .gsb-main-tabs button.active,
+:root:not([data-theme="dark"]) .btn-primary,
+:root:not([data-theme="dark"]) .primary-button {
+  color: #ffffff;
+}
+:root:not([data-theme="dark"]) .gsb-main-tabs button.active {
+  background: var(--accent);
+}
+:root:not([data-theme="dark"]) .gsb-odds-area > button.selected {
+  background: var(--accent);
+}
+:root:not([data-theme="dark"]) .gsb-empty,
+:root:not([data-theme="dark"]) .live-scores-empty {
+  background: #ffffff80;
+}
+.theme-toggle {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--accent);
+}
+.theme-toggle:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
 }
