@@ -46,7 +46,13 @@ type MatchRow = {
   awayScore?: number | null;
   updatedAt?: unknown;
   teams?: { home?: { logo?: string }; away?: { logo?: string } };
+  statistics?: MatchStatistic[];
   aiPrediction?: PredictionData;
+};
+
+type MatchStatistic = {
+  team?: { name?: string };
+  statistics?: Array<{ type?: string; value?: number | string | null }>;
 };
 
 type PredictionSummary = {
@@ -81,6 +87,14 @@ function dateLabel(value: unknown) {
 function timestampMillis(value: unknown) {
   const date = dateFrom(value);
   return Number.isNaN(date.getTime()) ? 0 : date.getTime();
+}
+
+function statValue(match: MatchRow, teamName: string | undefined, labels: string[]) {
+  const team = match.statistics?.find(
+    (item) => item.team?.name && item.team.name.toLowerCase() === teamName?.toLowerCase(),
+  );
+  const row = team?.statistics?.find((item) => labels.includes(String(item.type)));
+  return row?.value == null || row.value === "" ? "—" : String(row.value);
 }
 
 function Matches() {
@@ -308,6 +322,30 @@ function Matches() {
                           month: "short",
                         })}
                   </time>
+                  <div className="match-quick-stats" aria-label="Takwimu za uchezaji">
+                    {match.statistics?.length ? (
+                      <>
+                        <span>
+                          <small>Possession</small>
+                          <b>
+                            {statValue(match, match.homeTeamName, ["Ball Possession"])} - {" "}
+                            {statValue(match, match.awayTeamName, ["Ball Possession"])}
+                          </b>
+                        </span>
+                        <span>
+                          <small>Shambulizi kali</small>
+                          <b>
+                            {statValue(match, match.homeTeamName, ["Dangerous Attacks"])} - {" "}
+                            {statValue(match, match.awayTeamName, ["Dangerous Attacks"])}
+                          </b>
+                        </span>
+                      </>
+                    ) : (
+                      <small className="match-stats-unavailable">
+                        Takwimu za uchezaji zitaonekana live zikishatolewa na provider
+                      </small>
+                    )}
+                  </div>
                 </Link>
               ))
             ) : (
