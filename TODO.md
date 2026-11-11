@@ -28,9 +28,8 @@
 - [ ] Commit mabadiliko kwenye branch mpya na fungua Pull Request bila ku-merge au ku-deploy.
 
 ## Stage 2 — product UI
-
-- [ ] Marketplace preview/listing UI yenye purchase buttons zilizoandikwa DEMO.
+- [x] Marketplace preview/listing UI yenye purchase buttons zilizoandikwa DEMO.
 - [ ] Community profile/follow/trending UI polish bila kubadili backend contracts.
-- [ ] Seller Center application/listings/sales demo UI.
+- [x] Seller Center application/listings/sales demo UI.
 - [ ] User Account, saved/purchased tickets demo na notifications UI.
-- [ ] Wallet demo/read-only UI yenye ujumbe wazi kuwa real-money wallet haijawezeshwa.
+- [x] Wallet demo/read-only UI yenye ujumbe wazi kuwa real-money wallet haijawezeshwa.

@@ -16,8 +16,11 @@ import { Route as CreateTicketRouteImport } from './routes/create-ticket'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as LeaderboardRouteImport } from './routes/leaderboard'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as MarketplaceRouteImport } from './routes/marketplace'
 import { Route as MatchesRouteImport } from './routes/matches'
 import { Route as RegisterRouteImport } from './routes/register'
+import { Route as SellerCenterRouteImport } from './routes/seller-center'
+import { Route as WalletRouteImport } from './routes/wallet'
 import { Route as TicketsTicketIdRouteImport } from './routes/tickets/$ticketId'
 import { Route as UsersUsernameRouteImport } from './routes/users/$username'
 
@@ -56,6 +59,11 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MarketplaceRoute = MarketplaceRouteImport.update({
+  id: '/marketplace',
+  path: '/marketplace',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MatchesRoute = MatchesRouteImport.update({
   id: '/matches',
   path: '/matches',
@@ -64,6 +72,16 @@ const MatchesRoute = MatchesRouteImport.update({
 const RegisterRoute = RegisterRouteImport.update({
   id: '/register',
   path: '/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SellerCenterRoute = SellerCenterRouteImport.update({
+  id: '/seller-center',
+  path: '/seller-center',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WalletRoute = WalletRouteImport.update({
+  id: '/wallet',
+  path: '/wallet',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TicketsTicketIdRoute = TicketsTicketIdRouteImport.update({
@@ -85,8 +103,11 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof DashboardRoute
   '/leaderboard': typeof LeaderboardRoute
   '/login': typeof LoginRoute
+  '/marketplace': typeof MarketplaceRoute
   '/matches': typeof MatchesRoute
   '/register': typeof RegisterRoute
+  '/seller-center': typeof SellerCenterRoute
+  '/wallet': typeof WalletRoute
   '/tickets/$ticketId': typeof TicketsTicketIdRoute
   '/users/$username': typeof UsersUsernameRoute
 }
@@ -98,8 +119,11 @@ export interface FileRoutesByTo {
   '/dashboard': typeof DashboardRoute
   '/leaderboard': typeof LeaderboardRoute
   '/login': typeof LoginRoute
+  '/marketplace': typeof MarketplaceRoute
   '/matches': typeof MatchesRoute
   '/register': typeof RegisterRoute
+  '/seller-center': typeof SellerCenterRoute
+  '/wallet': typeof WalletRoute
   '/tickets/$ticketId': typeof TicketsTicketIdRoute
   '/users/$username': typeof UsersUsernameRoute
 }
@@ -112,8 +136,11 @@ export interface FileRoutesById {
   '/dashboard': typeof DashboardRoute
   '/leaderboard': typeof LeaderboardRoute
   '/login': typeof LoginRoute
+  '/marketplace': typeof MarketplaceRoute
   '/matches': typeof MatchesRoute
   '/register': typeof RegisterRoute
+  '/seller-center': typeof SellerCenterRoute
+  '/wallet': typeof WalletRoute
   '/tickets/$ticketId': typeof TicketsTicketIdRoute
   '/users/$username': typeof UsersUsernameRoute
 }
@@ -127,8 +154,11 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/leaderboard'
     | '/login'
+    | '/marketplace'
     | '/matches'
     | '/register'
+    | '/seller-center'
+    | '/wallet'
     | '/tickets/$ticketId'
     | '/users/$username'
   fileRoutesByTo: FileRoutesByTo
@@ -140,8 +170,11 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/leaderboard'
     | '/login'
+    | '/marketplace'
     | '/matches'
     | '/register'
+    | '/seller-center'
+    | '/wallet'
     | '/tickets/$ticketId'
     | '/users/$username'
   id:
@@ -153,8 +186,11 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/leaderboard'
     | '/login'
+    | '/marketplace'
     | '/matches'
     | '/register'
+    | '/seller-center'
+    | '/wallet'
     | '/tickets/$ticketId'
     | '/users/$username'
   fileRoutesById: FileRoutesById
@@ -167,8 +203,11 @@ export interface RootRouteChildren {
   DashboardRoute: typeof DashboardRoute
   LeaderboardRoute: typeof LeaderboardRoute
   LoginRoute: typeof LoginRoute
+  MarketplaceRoute: typeof MarketplaceRoute
   MatchesRoute: typeof MatchesRoute
   RegisterRoute: typeof RegisterRoute
+  SellerCenterRoute: typeof SellerCenterRoute
+  WalletRoute: typeof WalletRoute
   TicketsTicketIdRoute: typeof TicketsTicketIdRoute
   UsersUsernameRoute: typeof UsersUsernameRoute
 }
@@ -224,6 +263,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/marketplace': {
+      id: '/marketplace'
+      path: '/marketplace'
+      fullPath: '/marketplace'
+      preLoaderRoute: typeof MarketplaceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/matches': {
       id: '/matches'
       path: '/matches'
@@ -236,6 +282,20 @@ declare module '@tanstack/react-router' {
       path: '/register'
       fullPath: '/register'
       preLoaderRoute: typeof RegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/seller-center': {
+      id: '/seller-center'
+      path: '/seller-center'
+      fullPath: '/seller-center'
+      preLoaderRoute: typeof SellerCenterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/wallet': {
+      id: '/wallet'
+      path: '/wallet'
+      fullPath: '/wallet'
+      preLoaderRoute: typeof WalletRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/tickets/$ticketId': {
@@ -263,8 +323,11 @@ const rootRouteChildren: RootRouteChildren = {
   DashboardRoute: DashboardRoute,
   LeaderboardRoute: LeaderboardRoute,
   LoginRoute: LoginRoute,
+  MarketplaceRoute: MarketplaceRoute,
   MatchesRoute: MatchesRoute,
   RegisterRoute: RegisterRoute,
+  SellerCenterRoute: SellerCenterRoute,
+  WalletRoute: WalletRoute,
   TicketsTicketIdRoute: TicketsTicketIdRoute,
   UsersUsernameRoute: UsersUsernameRoute,
 }
