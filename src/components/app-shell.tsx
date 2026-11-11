@@ -75,6 +75,7 @@ export function AppShell({ children, user }: { children: ReactNode; user?: Shell
         <nav className="top-nav">
           <Link to="/">Nyumbani</Link>
           <Link to="/matches">Mechi</Link>
+          <Link to="/marketplace">Marketplace</Link>
           <Link to="/create-ticket">Tengeneza mkeka</Link>
           <Link to="/community">Jamii</Link>
           <Link to="/leaderboard">Leaderboard</Link>

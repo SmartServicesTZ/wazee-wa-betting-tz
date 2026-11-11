@@ -2355,3 +2355,346 @@ label {
   border-color: var(--accent);
   background: var(--accent-soft);
 }
+.stage2-page {
+  max-width: 1180px;
+}
+.marketplace-hero {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  margin: 10px 0 22px;
+  padding: clamp(22px, 4vw, 42px);
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: linear-gradient(135deg, var(--surface), var(--accent-soft));
+  box-shadow: var(--shadow);
+}
+.marketplace-hero h1 {
+  max-width: 620px;
+  margin: 8px 0;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: clamp(32px, 5vw, 62px);
+  letter-spacing: -0.065em;
+}
+.marketplace-hero p {
+  max-width: 560px;
+  margin: 0;
+  color: var(--muted);
+}
+.marketplace-hero-note,
+.seller-status-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 15px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--accent);
+}
+.marketplace-hero-note span,
+.seller-status-banner div {
+  display: grid;
+  gap: 2px;
+}
+.marketplace-hero-note small,
+.seller-status-banner span {
+  color: var(--muted);
+  font-size: 10px;
+}
+.stage2-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+.market-search {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 44px;
+  padding: 0 13px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--muted);
+}
+.market-search input {
+  width: 100%;
+  min-height: 40px;
+  border: 0 !important;
+  outline: 0;
+  background: transparent !important;
+}
+.stage2-filter-pills {
+  display: flex;
+  gap: 6px;
+}
+.stage2-filter-pills button,
+.listing-actions button,
+.listing-actions a {
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 900;
+  text-decoration: none;
+}
+.stage2-filter-pills button.is-active,
+.listing-actions button:hover,
+.listing-actions a:hover {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+.marketplace-layout {
+  display: grid;
+  grid-template-columns: 245px minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+.seller-card,
+.listing-card,
+.stage2-stat,
+.wallet-hero-card {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: 0 12px 32px #183b2e0b;
+}
+.seller-card {
+  position: sticky;
+  top: 86px;
+  padding: 18px;
+}
+.seller-card h2 {
+  margin: 12px 0 7px;
+  font-family: "Space Grotesk", sans-serif;
+  letter-spacing: -0.04em;
+}
+.seller-card p {
+  margin: 0 0 16px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.seller-avatar {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  margin-top: 19px;
+  border-radius: 14px;
+  background: var(--accent);
+  color: #fff;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 22px;
+  font-weight: 700;
+}
+.marketplace-content {
+  min-width: 0;
+}
+.listing-count,
+.demo-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 900;
+}
+.marketplace-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.listing-card {
+  padding: 15px;
+}
+.listing-head,
+.seller-mini,
+.listing-metrics,
+.listing-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 9px;
+}
+.seller-mini {
+  justify-content: flex-start;
+}
+.seller-mini > span {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 900;
+}
+.seller-mini div {
+  display: grid;
+  gap: 1px;
+}
+.seller-mini b {
+  font-size: 11px;
+}
+.seller-mini small,
+.listing-copy p,
+.listing-metrics,
+.listing-actions {
+  color: var(--muted);
+  font-size: 10px;
+}
+.verified-icon {
+  color: var(--accent);
+}
+.listing-copy {
+  margin: 17px 0;
+}
+.listing-copy .status {
+  font-size: 9px;
+}
+.listing-copy h3 {
+  margin: 7px 0 3px;
+  font-size: 15px;
+}
+.listing-copy p {
+  margin: 0;
+}
+.listing-metrics {
+  padding: 10px 0;
+  border-top: 1px solid var(--line-soft);
+  border-bottom: 1px solid var(--line-soft);
+}
+.listing-metrics span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.listing-metrics b {
+  color: var(--accent);
+}
+.listing-actions {
+  justify-content: flex-end;
+  padding-top: 11px;
+}
+.listing-actions button,
+.listing-actions a {
+  cursor: pointer;
+  font-size: 9px;
+}
+.seller-status-banner {
+  justify-content: flex-start;
+  margin: 18px 0;
+  color: var(--gold);
+}
+.seller-status-banner > svg:last-child {
+  margin-left: auto;
+  color: var(--accent);
+}
+.stage2-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.stage2-stat {
+  display: grid;
+  gap: 5px;
+  padding: 17px;
+}
+.stage2-stat > svg {
+  color: var(--accent);
+}
+.stage2-stat small,
+.stage2-stat span {
+  color: var(--muted);
+  font-size: 10px;
+}
+.stage2-stat b {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 24px;
+}
+.seller-grid {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 15px;
+}
+.compact-empty {
+  min-height: 220px;
+}
+.wallet-demo-card {
+  display: grid;
+  gap: 8px;
+  padding: 18px;
+  border: 1px dashed var(--line);
+  border-radius: 13px;
+  background: var(--accent-soft);
+}
+.wallet-demo-card span {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.wallet-hero-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 20px 0 13px;
+  padding: clamp(22px, 4vw, 38px);
+  background: linear-gradient(135deg, var(--accent), #0a4537);
+  color: #fff;
+}
+.wallet-hero-card div {
+  display: grid;
+  gap: 7px;
+}
+.wallet-hero-card span,
+.wallet-hero-card small {
+  color: #d3f0e5;
+}
+.wallet-hero-card strong {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: clamp(32px, 6vw, 58px);
+  letter-spacing: -0.06em;
+}
+.wallet-actions {
+  display: flex;
+  gap: 9px;
+  margin-bottom: 18px;
+}
+@media (max-width: 800px) {
+  .marketplace-hero,
+  .stage2-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .marketplace-layout,
+  .seller-grid {
+    grid-template-columns: 1fr;
+  }
+  .seller-card {
+    position: static;
+  }
+}
+@media (max-width: 520px) {
+  .stage2-filter-pills,
+  .wallet-actions {
+    width: 100%;
+  }
+  .stage2-filter-pills button,
+  .wallet-actions .btn {
+    flex: 1;
+  }
+  .marketplace-grid,
+  .stage2-stat-grid {
+    grid-template-columns: 1fr;
+  }
+}

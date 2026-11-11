@@ -21,4 +21,4 @@ Existing homepage, matches, community, ticket builder, ticket details, leaderboa
 
 ## Stage 2 direction
 
-Baada ya approval ya branch safi, ongeza Marketplace preview, Community profile/follow polish, Seller Center demo, User Account surfaces na Wallet read-only demo kama UI-only additions. Purchase/earnings/withdrawal controls zibaki DEMO/DISABLED mpaka backend/payment approvals zipatikane. Hakuna production deployment mpaka approval ya Project Lead.
+Stage 2 imeanza kwenye branch tofauti ya UI-only additions. `/marketplace` hutumia public tickets zilizopo kama previews na purchase action inaonyesha demo toast tu. `/seller-center` ina application/listings/sales preview na withdrawals disabled. `/wallet` ni read-only demo yenye balance ya TZS 0.00 na hakuna transaction/payment write. Community na User Account zitapolishwa hatua inayofuata bila kubadili backend contracts. Purchase/earnings/withdrawal controls zibaki DEMO/DISABLED mpaka backend/payment approvals zipatikane. Hakuna production deployment mpaka approval ya Project Lead.
