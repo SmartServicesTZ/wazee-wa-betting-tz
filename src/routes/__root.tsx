@@ -11,6 +11,7 @@ import { useEffect, type ReactNode } from "react";
 import { Toaster } from "sonner";
 import appCss from "../styles.css?url";
 import refreshCss from "../site-refresh.css?inline";
+import dashboardShellCss from "../dashboard-shell.css?inline";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   head: () => ({
@@ -49,7 +50,7 @@ function RootShell({ children }: { children: ReactNode }) {
     <html lang="sw">
       <head>
         <HeadContent />
-        <style dangerouslySetInnerHTML={{ __html: refreshCss }} />
+        <style dangerouslySetInnerHTML={{ __html: refreshCss + dashboardShellCss }} />
       </head>
       <body>
         {children}
