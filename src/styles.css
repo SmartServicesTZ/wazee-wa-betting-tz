@@ -2863,3 +2863,73 @@ label {
   .coupon-tab { min-height: 43px; padding: 0 9px; font-size: 10px; }
   .ticket-feed-finance { grid-template-columns: repeat(2, 1fr); row-gap: 9px; }
 }
+
+
+/* Light-first premium sports dashboard theme */
+:root {
+  color-scheme: light;
+  --bg: #f1f5fb;
+  --bg-deep: #e9eff7;
+  --surface: #ffffff;
+  --surface-2: #f5f8fc;
+  --surface-3: #edf2f8;
+  --line: #dfe7f0;
+  --line-soft: #e8edf4;
+  --text: #172944;
+  --muted: #718199;
+  --muted-2: #8795a8;
+  --accent: #174d91;
+  --accent-soft: #174d9114;
+  --teal: #198b83;
+  --gold: #b47a24;
+  --danger: #bd4552;
+  --success: #21834a;
+  --shadow: 0 12px 32px #17365d10;
+}
+html,body { background:#f1f5fb; color:#172944; }
+body {
+  background:
+    radial-gradient(circle at 90% -8%, #dceafa 0, transparent 34rem),
+    radial-gradient(circle at 5% 18%, #e5f0ed 0, transparent 30rem),
+    #f1f5fb;
+}
+::selection { background:#d4f36c; color:#123a2a; }
+:focus-visible { outline-color:#2d78bd; }
+.site-shell.rb-shell { background:#f1f5fb; color:#172944; }
+.rb-shell .site-safety-note { border-color:#dfe7f0; background:#fff; color:#61738c; }
+.rb-shell .site-safety-note a { color:#1d5c9e; }
+.rb-shell .rb-footer { color:#8290a3; }
+.rb-shell .rb-bottom-nav { border-color:#dfe7f0; background:#ffffffed; box-shadow:0 -8px 25px #17365d0c; }
+.rb-shell .rb-bottom-nav a { color:#63758c; }
+.rb-shell .rb-bottom-nav a.active,.rb-shell .rb-bottom-nav a[aria-current="page"] { color:#174d91; }
+.rb-shell .rb-mobile-header { background:#fff; border-color:#e2e9f1; color:#172944; }
+.rb-shell .rb-mobile-header button { color:#174d91; }
+.rb-shell .rb-topbar { background:#fff; border-color:#e2e9f1; color:#172944; }
+.rb-shell .rb-topbar .rb-breadcrumb { color:#8190a4; }
+.rb-shell .rb-topbar .rb-top-profile { color:#24415f; }
+.rb-shell .rb-content { background:#f1f5fb; }
+.rb-shell .rb-content .alert { border-color:#dce8f5; background:#edf5ff; color:#365879; }
+.rb-shell .rb-content .empty { color:#78889d; }
+.rb-shell .rb-content .empty b { color:#263c59; }
+.rb-shell .rb-content .panel,.rb-shell .rb-content .profile-hero,.rb-shell .rb-content .auth-card,
+.rb-shell .rb-content .ticket-feed-card,.rb-shell .rb-content .match-builder-card,
+.rb-shell .rb-content .prediction-section,.rb-shell .rb-content .admin-card,
+.rb-shell .rb-content .admin-list-card {
+  border-color:#e0e7f0; background:#fff; color:#263b56;
+  box-shadow:0 9px 26px #152f560c;
+}
+.rb-shell .rb-content .panel p,.rb-shell .rb-content .profile-hero p { color:#718199; }
+.rb-shell .rb-content .page-title h1,.rb-shell .rb-content .section-toolbar h2,
+.rb-shell .rb-content .panel h3,.rb-shell .rb-content .auth-card h1 { color:#172944; }
+.rb-shell .rb-content .eyebrow,.rb-shell .rb-content .section-kicker { color:#2866ad; }
+.rb-shell .rb-content input,.rb-shell .rb-content textarea,.rb-shell .rb-content select {
+  border-color:#dce5ef; background:#fff; color:#172944;
+}
+.rb-shell .rb-content .btn-secondary,.rb-shell .rb-content .ghost-button {
+  border-color:#dce5ef; background:#f7f9fc; color:#526982;
+}
+@media(max-width:760px) {
+  .rb-shell .rb-topbar { display:none; }
+  .rb-shell .rb-content { padding-bottom:20px; }
+  .rb-shell .rb-bottom-nav { backdrop-filter:blur(18px); }
+}
