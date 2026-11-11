@@ -80,6 +80,16 @@ export type PublicFreeTicket = PublicTicket & {
   }>;
 };
 
+export type MatchStatistic = {
+  team?: { id?: number | string; name?: string; logo?: string };
+  statistics?: { type?: string; value?: number | string | null }[];
+};
+export type MatchRecord = {
+  id: string; kickoffAt: string; leagueName?: string; homeTeamName?: string; awayTeamName?: string;
+  homeTeamLogo?: string; awayTeamLogo?: string; status?: string; homeScore?: number | null; awayScore?: number | null;
+  halfHomeScore?: number | null; halfAwayScore?: number | null; events?: unknown[]; statistics?: MatchStatistic[]; lineups?: unknown[]; updatedAt?: unknown;
+};
+
 export type TicketComment = {
   id: string;
   ticketId: string;
@@ -331,6 +341,11 @@ export async function listMatches(max = 100) {
       (a, b) => new Date(String(a.kickoffAt)).getTime() - new Date(String(b.kickoffAt)).getTime(),
     )
     .slice(0, max);
+}
+
+export async function getMatch(matchId: string): Promise<MatchRecord | null> {
+  const snapshot = await getDoc(doc(firestore, "matches", matchId));
+  return snapshot.exists() ? ({ id: snapshot.id, ...snapshot.data() } as MatchRecord) : null;
 }
 
 export async function getTicket(ticketId: string) {

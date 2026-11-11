@@ -2,6 +2,7 @@
   "routes": [
     { "path": "/", "title": "Nyumbani" },
     { "path": "/matches", "title": "Mechi" },
+    { "path": "/matches/$matchId", "title": "Taarifa za mechi" },
     { "path": "/community", "title": "Jamii / Coupons" },
     { "path": "/create-ticket", "title": "Tengeneza mkeka" },
     { "path": "/dashboard", "title": "Dashboard" },

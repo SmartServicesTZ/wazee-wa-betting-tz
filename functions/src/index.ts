@@ -94,6 +94,9 @@ type Match = {
   halfHomeScore: number | null;
   halfAwayScore: number | null;
   markets?: any[];
+  events?: any[];
+  statistics?: any[];
+  lineups?: any[];
 };
 function assertApi() {
   if (!API_KEY) throw new Error("SPORTS_API_KEY haijawekwa kwenye server.");
@@ -188,6 +191,14 @@ function hasFreshOdds(match: any, now = Date.now()): boolean {
     fetchedAt <= now + 60_000 &&
     fetchedAt >= now - ODDS_CACHE_MS
   );
+}
+async function fetchMatchDetails(eventId: string) {
+  const [events, statistics, lineups] = await Promise.all([
+    api("/fixtures/events", { fixture: eventId }).catch(() => []),
+    api("/fixtures/statistics", { fixture: eventId }).catch(() => []),
+    api("/fixtures/lineups", { fixture: eventId }).catch(() => []),
+  ]);
+  return { events, statistics, lineups };
 }
 async function syncDate(date: string) {
   const fixtures = await api("/fixtures", { date });

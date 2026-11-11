@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { RefreshCw } from "lucide-react";
 import type { User } from "firebase/auth";
 import { useCallback, useEffect, useState } from "react";
@@ -303,7 +303,7 @@ function Matches() {
                           month: "short",
                         })}
                   </time>
-                </div>
+                </Link>
               ))
             ) : (
               <div className="empty">{matchesError || "Hakuna mechi zilizosawazishwa bado."}</div>
