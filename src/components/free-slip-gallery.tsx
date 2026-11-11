@@ -51,16 +51,11 @@ function loadImage(src: string) {
     image.src = src;
   });
 }
-async function makeSlipImage(
-  ticket: PublicFreeTicket,
-  target: OddsTarget,
-  history: PublicFreeTicket[] = [],
-) {
+async function makeSlipImage(ticket: PublicFreeTicket, target: OddsTarget) {
   const items = ticket.selections ?? [];
-  const historyItems = history.slice(0, 5);
   const canvas = document.createElement("canvas");
   canvas.width = 1080;
-  canvas.height = Math.max(1280, 420 + items.length * 122 + (historyItems.length ? 520 : 270));
+  canvas.height = Math.max(1280, 420 + items.length * 122 + 270);
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Kifaa hakiwezi kutengeneza picha.");
   const bg = ctx.createLinearGradient(0, 0, 1080, canvas.height);
@@ -126,28 +121,6 @@ async function makeSlipImage(
   ctx.fillStyle = "#ffffff";
   ctx.font = "800 62px Arial";
   ctx.fillText(Number(ticket.totalOdds).toFixed(2), 78, y + 132);
-  if (historyItems.length) {
-    const historyY = y + 198;
-    ctx.fillStyle = "#70b7ff";
-    ctx.font = "800 24px Arial";
-    ctx.fillText(`MIKEKA MIPYA NA HISTORIA • ODDS ${target}`, 55, historyY);
-    historyItems.forEach((oldTicket, index) => {
-      const rowY = historyY + 28 + index * 58;
-      ctx.fillStyle = "#102c50";
-      ctx.fillRect(55, rowY, 970, 46);
-      ctx.fillStyle = "#f5f9ff";
-      ctx.font = "bold 19px Arial";
-      ctx.fillText(`${index + 1}. ${formatDate(oldTicket.createdAt)}`.slice(0, 30), 72, rowY + 29);
-      ctx.fillStyle = "#b8c9dd";
-      ctx.font = "18px Arial";
-      ctx.fillText(`${(oldTicket.selections ?? []).length} chaguo`, 500, rowY + 29);
-      ctx.fillStyle = "#8ed0ff";
-      ctx.font = "bold 20px Arial";
-      ctx.textAlign = "right";
-      ctx.fillText(Number(oldTicket.totalOdds).toFixed(2), 985, rowY + 29);
-      ctx.textAlign = "left";
-    });
-  }
   ctx.fillStyle = "#c7d5e5";
   ctx.font = "19px Arial";
   ctx.fillText(
@@ -165,20 +138,12 @@ async function makeSlipImage(
     ),
   );
 }
-function SlipPoster({
-  ticket,
-  target,
-  history,
-}: {
-  ticket: PublicFreeTicket;
-  target: OddsTarget;
-  history: PublicFreeTicket[];
-}) {
+function SlipPoster({ ticket, target }: { ticket: PublicFreeTicket; target: OddsTarget }) {
   const [busy, setBusy] = useState(false);
   const exportImage = async (share: boolean) => {
     setBusy(true);
     try {
-      const blob = await makeSlipImage(ticket, target, history);
+      const blob = await makeSlipImage(ticket, target);
       const file = new File([blob], `mkeka-wa-leo-odds-${target}.png`, { type: "image/png" });
       if (share && navigator.share && navigator.canShare?.({ files: [file] })) {
         await navigator.share({ files: [file], title: `Mkeka wa Leo — Odds ${target}` });
@@ -232,9 +197,6 @@ function SlipPoster({
             <b className="free-slip-odd">{Number(selection.odds).toFixed(2)}</b>
           </div>
         ))}
-      </div>
-      <div className="free-slip-inline-history">
-        <History tickets={history} compact />
       </div>
       <div className="free-slip-actions">
         <Link
@@ -360,7 +322,7 @@ export function FreeSlipGallery() {
       {loading ? (
         <div className="free-slip-empty">Inapakia mikeka ya bure...</div>
       ) : today ? (
-        <SlipPoster ticket={today} target={target} history={history} />
+        <SlipPoster ticket={today} target={target} />
       ) : (
         <div className="free-slip-empty">
           <Trophy size={22} />

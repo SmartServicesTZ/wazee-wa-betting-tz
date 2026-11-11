@@ -85,9 +85,22 @@ export type MatchStatistic = {
   statistics?: { type?: string; value?: number | string | null }[];
 };
 export type MatchRecord = {
-  id: string; kickoffAt: string; leagueName?: string; homeTeamName?: string; awayTeamName?: string;
-  homeTeamLogo?: string; awayTeamLogo?: string; status?: string; homeScore?: number | null; awayScore?: number | null;
-  halfHomeScore?: number | null; halfAwayScore?: number | null; events?: unknown[]; statistics?: MatchStatistic[]; lineups?: unknown[]; updatedAt?: unknown;
+  id: string;
+  kickoffAt: string;
+  leagueName?: string;
+  homeTeamName?: string;
+  awayTeamName?: string;
+  homeTeamLogo?: string;
+  awayTeamLogo?: string;
+  status?: string;
+  homeScore?: number | null;
+  awayScore?: number | null;
+  halfHomeScore?: number | null;
+  halfAwayScore?: number | null;
+  events?: unknown[];
+  statistics?: MatchStatistic[];
+  lineups?: unknown[];
+  updatedAt?: unknown;
 };
 
 export type TicketComment = {
@@ -217,6 +230,8 @@ export async function listAutomatedFreeTickets(max = 60): Promise<PublicFreeTick
     query(
       collection(firestore, "tickets"),
       where("automated", "==", true),
+      where("visibility", "==", "PUBLIC"),
+      where("access", "==", "FREE"),
       limit(Math.min(100, max)),
     ),
   );
